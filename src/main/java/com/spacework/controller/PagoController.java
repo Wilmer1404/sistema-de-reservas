@@ -2,11 +2,13 @@ package com.spacework.controller;
 
 import com.spacework.model.Pago;
 import com.spacework.model.TokenEvaluacion;
+import com.spacework.model.Evaluacion;
 import com.spacework.model.Reserva;
 import com.spacework.model.Cliente;
 import com.spacework.model.Espacio;
 import com.spacework.dao.PagoDAO;
 import com.spacework.dao.TokenEvaluacionDAO;
+import com.spacework.dao.EvaluacionDAO;
 import com.spacework.dao.ReservaDAO;
 import com.spacework.dao.ClienteDAO;
 import com.spacework.dao.EspacioDAO;
@@ -23,6 +25,7 @@ public class PagoController {
     
     private PagoDAO pagoDAO;
     private TokenEvaluacionDAO tokenEvaluacionDAO;
+    private EvaluacionDAO evaluacionDAO;
     private ReservaDAO reservaDAO;
     private ClienteDAO clienteDAO;
     private EspacioDAO espacioDAO;
@@ -30,6 +33,7 @@ public class PagoController {
     public PagoController() {
         this.pagoDAO = new PagoDAO();
         this.tokenEvaluacionDAO = new TokenEvaluacionDAO();
+        this.evaluacionDAO = new EvaluacionDAO();
         this.reservaDAO = new ReservaDAO();
         this.clienteDAO = new ClienteDAO();
         this.espacioDAO = new EspacioDAO();
@@ -82,6 +86,7 @@ public class PagoController {
 
     /**
      * Marca un pago como completado y genera token de evaluación
+     * Automáticamente crea una evaluación pendiente para el cliente
      * Envía correo al cliente con enlace para evaluar
      */
     public boolean completarPago(int idPago) {
@@ -92,6 +97,13 @@ public class PagoController {
                 return false;
             }
 
+            // Obtener la reserva asociada al pago
+            Reserva reserva = reservaDAO.buscarPorId(pago.getIdReserva());
+            if (reserva == null) {
+                System.out.println("Error: Reserva no encontrada");
+                return false;
+            }
+
             // Marcar pago como completado
             pago.setEstadoPago("COMPLETADO");
             pago.setFechaPago(new Date());
@@ -99,6 +111,20 @@ public class PagoController {
             if (!pagoDAO.actualizar(pago)) {
                 System.out.println("Error: No se pudo actualizar el pago");
                 return false;
+            }
+
+            // ===== CREAR EVALUACION AUTOMATICAMENTE =====
+            Evaluacion evaluacion = new Evaluacion();
+            evaluacion.setIdReserva(pago.getIdReserva());
+            evaluacion.setIdCliente(reserva.getCliente().getIdCliente());
+            evaluacion.setCalificacion(0);  // Pendiente de calificar
+            evaluacion.setComentario(null); // Pendiente de comentario
+            
+            if (!evaluacionDAO.insertar(evaluacion)) {
+                System.err.println("Advertencia: No se pudo crear evaluación automática para pago #" + idPago);
+                // Continuamos de todas formas (no es crítico)
+            } else {
+                System.out.println("[PagoController] Evaluación automática creada para reserva #" + pago.getIdReserva());
             }
 
             // Generar token de evaluación (válido por 30 días)

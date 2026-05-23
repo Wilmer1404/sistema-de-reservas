@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SpaceWork</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="container">
+            <h1 class="logo">SpaceWork</h1>
+            <nav>
+                <span id="usuarioNombre"></span>
+                <button class="btn btn-secondary" onclick="logout()">Cerrar sesión</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <h2>Disponibilidad de Espacios</h2>
+        
+        <div class="filters">
+            <input type="text" id="filtroTipo" placeholder="Filtrar por tipo">
+            <input type="number" id="filtroCapacidad" placeholder="Capacidad mínima" min="1">
+            <button class="btn btn-primary" onclick="filtrarEspacios()">Buscar</button>
+        </div>
+
+        <div id="espaciosGrid" class="grid">
+            <!-- Se llena dinámicamente -->
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        function verificarAutenticacion() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
+            document.getElementById('usuarioNombre').textContent = usuario.nombre || 'Usuario';
+        }
+
+        async function cargarEspacios() {
+            try {
+                const response = await fetch('/api/espacios');
+                const data = await response.json();
+                
+                if (data.success) {
+                    mostrarEspacios(data.data);
+                }
+            } catch (error) {
+                console.error('Error cargando espacios:', error);
+            }
+        }
+
+        function mostrarEspacios(espacios) {
+            const grid = document.getElementById('espaciosGrid');
+            grid.innerHTML = espacios.map(espacio => `
+                <div class="card espacio-card">
+                    <h3>${espacio.nombre}</h3>
+                    <p><strong>Tipo:</strong> ${espacio.tipo}</p>
+                    <p><strong>Capacidad:</strong> ${espacio.capacidad} personas</p>
+                    <p><strong>Ubicación:</strong> ${espacio.ubicacion}</p>
+                    <p class="precio"><strong>$${espacio.precioPorhora.toFixed(2)}</strong>/hora</p>
+                    <button class="btn btn-primary" onclick="abrirReserva(${espacio.idEspacio})">
+                        Reservar
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function filtrarEspacios() {
+            const tipo = document.getElementById('filtroTipo').value;
+            const capacidad = document.getElementById('filtroCapacidad').value;
+            
+            // Implementar filtrado
+            cargarEspacios();
+        }
+
+        function abrirReserva(idEspacio) {
+            window.location.href = `reserva.html?espacioId=${idEspacio}`;
+        }
+
+        verificarAutenticacion();
+        cargarEspacios();
+    </script>
+</body>
+</html>

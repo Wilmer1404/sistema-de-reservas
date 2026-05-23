@@ -1,20 +1,21 @@
 -- ============================================================
 -- 00_crear_usuario.sql
--- Ejecutar en DBeaver conectado como: SYSTEM / MiContra123
--- Esto crea el esquema "spacework" donde vivirán las tablas
+-- Sistema de Reservas SpaceWork Perú S.A.C.
+-- Ejecutar conectado como SYSTEM en Oracle XE
 -- ============================================================
 
--- Crear usuario spacework (ignorar error si ya existe)
-CREATE USER spacework IDENTIFIED BY spacework123;
+-- Crear usuario spacework
+CREATE USER spacework IDENTIFIED BY spacework;
 
--- Darle permisos completos
-GRANT CONNECT, RESOURCE, DBA TO spacework;
+-- Otorgar privilegios
+GRANT CONNECT, RESOURCE, CREATE VIEW, CREATE SEQUENCE,
+      CREATE TRIGGER, CREATE PROCEDURE, CREATE TABLE TO spacework;
 
--- Cuota ilimitada en todos los tablespaces comunes
+-- Asignar cuota ilimitada
 ALTER USER spacework QUOTA UNLIMITED ON USERS;
-ALTER USER spacework QUOTA UNLIMITED ON SYSTEM;
 
--- En Oracle XE también puede llamarse SYSAUX
-ALTER USER spacework DEFAULT TABLESPACE USERS;
+-- Otorgar permisos adicionales para secuencias y triggers
+GRANT CREATE ANY SEQUENCE TO spacework;
+GRANT CREATE ANY TRIGGER TO spacework;
 
 COMMIT;

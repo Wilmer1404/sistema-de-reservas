@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -39,26 +40,41 @@ public class SpaceWorkApplication {
     public static void main(String[] args) throws IOException {
         printBanner();
         
-        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", PORT), 0);
-        
-        // Ruta pública para evaluaciones desde email (sin login requerido)
-        server.createContext("/evaluaciones/formulario", new EvaluacionFormularioHandler());
-        
-        // Ruta para archivos estáticos (CSS, JS, imágenes)
-        server.createContext("/css/", new StaticFileHandler("css"));
-        server.createContext("/js/", new StaticFileHandler("js"));
-        server.createContext("/api/", new ApiHandler());
-        
-        // Ruta raíz - sirve index.html y SPA
-        server.createContext("/", new RootHandler());
-        
-        server.setExecutor(null);
-        server.start();
-        sincronizarPagos();
-        System.out.println("\n✅ Servidor WEB iniciado exitosamente");
-        System.out.println("🌐 URL: http://localhost:" + PORT);
-        System.out.println("📧 Evaluaciones: http://localhost:" + PORT + "/evaluaciones/formulario?token=xxx&calificacion=5");
-        System.out.println("\n⏹️  Presiona Ctrl+C para detener\n");
+        try {
+            HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", PORT), 0);
+            
+            // Health check
+            server.createContext("/health", new com.spacework.controller.api.HealthCheckHandler());
+            
+            // Ruta pública para evaluaciones desde email (sin login requerido)
+            server.createContext("/evaluaciones/formulario", new EvaluacionFormularioHandler());
+            
+            // Ruta para archivos estáticos (CSS, JS, imágenes)
+            server.createContext("/css/", new StaticFileHandler("css"));
+            server.createContext("/js/", new StaticFileHandler("js"));
+            server.createContext("/api/", new ApiHandler());
+            
+            // Ruta raíz - sirve index.html y SPA
+            server.createContext("/", new RootHandler());
+            
+            server.setExecutor(null);
+            server.start();
+            
+            sincronizarPagos();
+            
+            System.out.println("\n✅ Servidor WEB iniciado exitosamente");
+            System.out.println("🌐 URL: http://localhost:" + PORT);
+            System.out.println("📧 Evaluaciones: http://localhost:" + PORT + "/evaluaciones/formulario?token=xxx&calificacion=5");
+            System.out.println("\n⏹️  Presiona Ctrl+C para detener\n");
+            
+            // Mantener el servidor corriendo indefinidamente
+            Thread.currentThread().join();
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error iniciando servidor: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
 
     private static void sincronizarPagos() {
@@ -171,11 +187,26 @@ public class SpaceWorkApplication {
                 if (path.equals("/api/auth/login") && method.equals("POST")) {
                     handleLogin(exchange);
                 }
+                // CLIENTE LOGIN
+                else if (path.equals("/api/clientes/login") && method.equals("POST")) {
+                    com.spacework.controller.api.ClienteAuthRestController clienteAuth = new com.spacework.controller.api.ClienteAuthRestController();
+                    clienteAuth.handle(exchange);
+                }
                 // RESERVAS
                 else if (path.equals("/api/reservas") && method.equals("GET")) {
+                    if (!requireAuth(exchange)) return;
                     handleGetReservas(exchange);
                 } else if (path.equals("/api/reservas") && method.equals("POST")) {
+                    if (!requireAuth(exchange)) return;
                     handlePostReserva(exchange);
+                } else if (path.matches("/api/reservas/\\d+") && method.equals("GET")) {
+                    if (!requireAuth(exchange)) return;
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handleGetReservaById(exchange, id);
+                } else if (path.matches("/api/reservas/\\d+") && method.equals("PUT")) {
+                    if (!requireAuth(exchange)) return;
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handlePutReserva(exchange, id);
                 } else if (path.matches("/api/reservas/\\d+/confirmar") && method.equals("PUT")) {
                     int id = Integer.parseInt(path.split("/")[3]);
                     Reserva reserva = new ReservaDAO().buscarPorId(id);
@@ -183,9 +214,27 @@ public class SpaceWorkApplication {
                         sendJson(exchange, 404, "{\"success\":false,\"error\":\"Reserva no encontrada\"}");
                         return;
                     }
-                    // Solo cambiar a CONFIRMADA (sin crear pago)
+                    // Cambiar a CONFIRMADA
                     new ReservaDAO().cambiarEstado(id, "CONFIRMADA");
-                    sendJson(exchange, 200, "{\"success\":true}");
+                    
+                    // CREAR PAGO AUTOMATICAMENTE
+                    try {
+                        Pago pago = new Pago();
+                        pago.setIdReserva(id);
+                        pago.setMonto(reserva.getMontoTotal());
+                        pago.setMontoFinal(reserva.getMontoTotal());
+                        pago.setMetodoPago("EFECTIVO");
+                        pago.setEstadoPago("PENDIENTE");
+                        pago.setFechaCreacion(new java.util.Date());
+                        
+                        if (new PagoDAO().insertar(pago)) {
+                            sendJson(exchange, 200, "{\"success\":true,\"message\":\"Reserva confirmada. Pago creado automáticamente.\"}");
+                        } else {
+                            sendJson(exchange, 200, "{\"success\":true,\"warning\":\"Reserva confirmada pero no se pudo crear el pago.\"}");
+                        }
+                    } catch (Exception e) {
+                        sendJson(exchange, 200, "{\"success\":true,\"warning\":\"Reserva confirmada pero error al crear pago: " + e.getMessage() + "\"}");
+                    }
                 } else if (path.matches("/api/reservas/\\d+/completar") && method.equals("PUT")) {
                     int id = Integer.parseInt(path.split("/")[3]);
                     Reserva reserva = new ReservaDAO().buscarPorId(id);
@@ -193,14 +242,8 @@ public class SpaceWorkApplication {
                         sendJson(exchange, 404, "{\"success\":false,\"error\":\"Reserva no encontrada\"}");
                         return;
                     }
-                    // Cambiar a COMPLETADA y crear pago PENDIENTE
+                    // Cambiar a COMPLETADA (el pago ya fue creado al insertar la reserva)
                     new ReservaDAO().cambiarEstado(id, "COMPLETADA");
-                    Pago pago = new Pago();
-                    pago.setIdReserva(id);
-                    pago.setMonto(reserva.getMontoTotal());
-                    pago.setMetodoPago("EFECTIVO"); // valor por defecto, el usuario lo cambia al pagar
-                    pago.setEstadoPago("PENDIENTE");
-                    new PagoDAO().insertar(pago);
                     sendJson(exchange, 200, "{\"success\":true}");
                 } else if (path.matches("/api/reservas/\\d+") && method.equals("DELETE")) {
                     int id = Integer.parseInt(path.split("/")[3]);
@@ -227,6 +270,8 @@ public class SpaceWorkApplication {
                 // CLIENTES
                 else if (path.equals("/api/clientes") && method.equals("GET")) {
                     handleGetClientes(exchange);
+                } else if (path.equals("/api/clientes/recuperar-password") && method.equals("POST")) {
+                    handleRecuperarPassword(exchange);
                 } else if (path.equals("/api/clientes") && method.equals("POST")) {
                     handlePostCliente(exchange);
                 } else if (path.matches("/api/clientes/\\d+") && method.equals("GET")) {
@@ -245,12 +290,27 @@ public class SpaceWorkApplication {
                 }
                 // PAGOS
                 else if (path.equals("/api/pagos") && method.equals("GET")) {
+                    if (!requireAuth(exchange)) return;
                     handleGetPagos(exchange);
                 } else if (path.equals("/api/pagos") && method.equals("POST")) {
+                    if (!requireAuth(exchange)) return;
                     handlePostPago(exchange);
+                } else if (path.matches("/api/pagos/\\d+") && method.equals("GET")) {
+                    if (!requireAuth(exchange)) return;
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handleGetPagoById(exchange, id);
                 } else if (path.matches("/api/pagos/\\d+/pagar") && method.equals("PUT")) {
+                    if (!requireAuth(exchange)) return;
                     int id = Integer.parseInt(path.split("/")[3]);
                     handlePagarPago(exchange, id);
+                } else if (path.matches("/api/pagos/\\d+") && method.equals("PUT")) {
+                    if (!requireAuth(exchange)) return;
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handlePutPago(exchange, id);
+                } else if (path.matches("/api/pagos/\\d+") && method.equals("DELETE")) {
+                    if (!requireAuth(exchange)) return;
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handleDeletePago(exchange, id);
                 }
                 // DESCUENTOS
                 else if (path.equals("/api/descuentos") && method.equals("GET")) {
@@ -276,6 +336,15 @@ public class SpaceWorkApplication {
                     handleGetEvaluaciones(exchange);
                 } else if (path.equals("/api/evaluaciones") && method.equals("POST")) {
                     handlePostEvaluacion(exchange);
+                } else if (path.matches("/api/evaluaciones/\\d+") && method.equals("GET")) {
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handleGetEvaluacionById(exchange, id);
+                } else if (path.matches("/api/evaluaciones/\\d+") && method.equals("PUT")) {
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handlePutEvaluacion(exchange, id);
+                } else if (path.matches("/api/evaluaciones/\\d+") && method.equals("DELETE")) {
+                    int id = Integer.parseInt(path.split("/")[3]);
+                    handleDeleteEvaluacion(exchange, id);
                 }
                 // HORARIOS BLOQUEADOS
                 else if (path.equals("/api/horarios") && method.equals("GET")) {
@@ -295,6 +364,11 @@ public class SpaceWorkApplication {
                 else if (path.matches("/api/evaluaciones/enviar/\\d+") && method.equals("POST")) {
                     int idNotificacion = Integer.parseInt(path.split("/")[4]);
                     handleEnviarEvaluacionDesdeNotificacion(exchange, idNotificacion);
+                }
+                // ENVIAR EVALUACIÓN POR RESERVA (desde tabla evaluaciones)
+                else if (path.matches("/api/evaluaciones/enviar-reserva/\\d+") && method.equals("POST")) {
+                    int idReserva = Integer.parseInt(path.split("/")[4]);
+                    handleEnviarEvaluacionPorReserva(exchange, idReserva);
                 }
                 // MARCAR NOTIFICACIÓN COMO LEÍDA
                 else if (path.matches("/api/notificaciones/\\d+/leida") && method.equals("PUT")) {
@@ -337,12 +411,14 @@ public class SpaceWorkApplication {
             String hash = HashUtil.sha256(password);
             Usuario u = new UsuarioDAO().autenticar(username, hash);
             if (u != null) {
+                com.spacework.util.JwtUtil jwtUtil = new com.spacework.util.JwtUtil();
+                String token = jwtUtil.generarToken(u.getUsername(), u.getNombre(), u.getEmail(), u.getRol());
                 String userJson = "{\"idUsuario\":" + u.getIdUsuario()
                     + ",\"username\":\"" + esc(u.getUsername()) + "\""
                     + ",\"nombre\":\"" + esc(u.getNombre()) + "\""
                     + ",\"email\":\"" + esc(u.getEmail()) + "\""
                     + ",\"rol\":\"" + esc(u.getRol()) + "\"}";
-                sendJson(exchange, 200, "{\"success\":true,\"user\":" + userJson + "}");
+                sendJson(exchange, 200, "{\"success\":true,\"token\":\"" + token + "\",\"user\":" + userJson + "}");
             } else {
                 sendJson(exchange, 401, "{\"success\":false,\"error\":\"Credenciales inválidas\"}");
             }
@@ -394,6 +470,14 @@ public class SpaceWorkApplication {
             if (ff.length() == 16) ff += ":00";
             Timestamp tsIni = Timestamp.valueOf(fi);
             Timestamp tsFin = Timestamp.valueOf(ff);
+            
+            // Validar horarios bloqueados
+            boolean sinBloqueo = new HorarioBloqueadoDAO().verificarDisponibilidadHorarios(idEspacio, tsIni, tsFin);
+            if (!sinBloqueo) {
+                sendJson(exchange, 409, "{\"success\":false,\"error\":\"El espacio tiene un horario bloqueado en ese rango de fechas\"}");
+                return;
+            }
+            
             // Validar disponibilidad antes de insertar
             boolean disponible = new ReservaDAO().verificarDisponibilidad(idEspacio, tsIni, tsFin);
             if (!disponible) {
@@ -411,12 +495,180 @@ public class SpaceWorkApplication {
             r.setFechaFin(tsFin);
             r.setMontoTotal(monto);
             r.setEstado("PENDIENTE");
-            new ReservaDAO().insertar(r);
-            // Obtener el ID recién creado
-            List<Reserva> todas = new ReservaDAO().listarPorCliente(idCliente);
-            int newId = todas.isEmpty() ? 0 : todas.get(todas.size()-1).getIdReserva();
-            // El pago se creará cuando se CONFIRME la reserva
-            sendJson(exchange, 200, "{\"success\":true,\"idReserva\":" + newId + ",\"monto\":" + monto + "}");
+            
+            try {
+                new ReservaDAO().insertar(r);
+            } catch (Exception e) {
+                sendJson(exchange, 500, "{\"success\":false,\"error\":\"Error al crear la reserva: " + e.getMessage() + "\"}");
+                return;
+            }
+            
+            // Obtener el ID recién creado directamente de la BD
+            int newId = 0;
+            Connection conn = null;
+            try {
+                conn = Conexion.getConexion();
+                String sqlMaxId = "SELECT MAX(id_reserva) as max_id FROM RESERVAS WHERE id_cliente = ?";
+                java.sql.PreparedStatement ps = conn.prepareStatement(sqlMaxId);
+                ps.setInt(1, idCliente);
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    newId = rs.getInt("max_id");
+                }
+                ps.close();
+            } catch (Exception e) {
+                System.err.println("[Error] Error al obtener newId: " + e.getMessage());
+            } finally {
+                Conexion.cerrar(conn);
+            }
+            
+            if (newId == 0) {
+                sendJson(exchange, 500, "{\"success\":false,\"error\":\"No se pudo obtener el ID de la reserva creada\"}");
+                return;
+            }
+            
+            // Crear PAGO automáticamente con estado PENDIENTE
+            Pago pago = new Pago();
+            pago.setIdReserva(newId);
+            pago.setMonto(monto);
+            pago.setMontoFinal(monto);
+            pago.setDescuentoAplicado(0);
+            pago.setIgv(0);
+            pago.setEstadoPago("PENDIENTE");
+            pago.setMetodoPago("EFECTIVO");
+            
+            try {
+                new PagoDAO().insertar(pago);
+            } catch (Exception e) {
+                System.err.println("[Advertencia] No se pudo crear pago para reserva #" + newId + ": " + e.getMessage());
+            }
+            
+            // Obtener el ID del pago recién creado
+            int pagoId = 0;
+            try {
+                conn = Conexion.getConexion();
+                String sqlMaxPago = "SELECT MAX(id_pago) as max_id FROM PAGOS WHERE id_reserva = ?";
+                java.sql.PreparedStatement ps = conn.prepareStatement(sqlMaxPago);
+                ps.setInt(1, newId);
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    pagoId = rs.getInt("max_id");
+                }
+                ps.close();
+            } catch (Exception e) {
+                System.err.println("[Error] Error al obtener pagoId: " + e.getMessage());
+            } finally {
+                Conexion.cerrar(conn);
+            }
+            
+            System.out.println("[Reserva] ✅ Creada #" + newId + " | Pago #" + pagoId + " | Monto: S/. " + monto);
+            sendJson(exchange, 200, "{\"success\":true,\"idReserva\":" + newId + ",\"idPago\":" + pagoId + ",\"monto\":" + monto + "}");
+        }
+
+        private void handleGetReservaById(HttpExchange exchange, int idReserva) throws Exception {
+            Reserva r = new ReservaDAO().buscarPorId(idReserva);
+            if (r == null) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Reserva no encontrada\"}");
+                return;
+            }
+            sendJson(exchange, 200, "{\"success\":true,\"data\":" + reservaToJson(r) + "}");
+        }
+
+        private void handlePutReserva(HttpExchange exchange, int idReserva) throws Exception {
+            Reserva actual = new ReservaDAO().buscarPorId(idReserva);
+            if (actual == null) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Reserva no encontrada\"}");
+                return;
+            }
+
+            String body = readBody(exchange);
+            int idCliente = actual.getCliente().getIdCliente();
+            int idEspacio = actual.getEspacio().getIdEspacio();
+            String idClienteStr = extractJsonNum(body, "idCliente");
+            String idEspacioStr = extractJsonNum(body, "idEspacio");
+            if (idClienteStr != null && !idClienteStr.isEmpty()) idCliente = Integer.parseInt(idClienteStr);
+            if (idEspacioStr != null && !idEspacioStr.isEmpty()) idEspacio = Integer.parseInt(idEspacioStr);
+
+            String fechaIni = extractJson(body, "fechaInicio");
+            String fechaFin = extractJson(body, "fechaFin");
+            if (fechaIni == null || fechaIni.isEmpty()) fechaIni = dateFormat.format(actual.getFechaInicio());
+            if (fechaFin == null || fechaFin.isEmpty()) fechaFin = dateFormat.format(actual.getFechaFin());
+
+            String fi = fechaIni.replace("T", " ").replace("Z", "").trim();
+            String ff = fechaFin.replace("T", " ").replace("Z", "").trim();
+            if (fi.length() == 16) fi += ":00";
+            if (ff.length() == 16) ff += ":00";
+
+            Timestamp tsIni = Timestamp.valueOf(fi);
+            Timestamp tsFin = Timestamp.valueOf(ff);
+            if (tsFin.before(tsIni) || tsFin.equals(tsIni)) {
+                sendJson(exchange, 400, "{\"success\":false,\"error\":\"Rango de fechas inválido\"}");
+                return;
+            }
+
+            Connection conn = null;
+            try {
+                conn = Conexion.getConexion();
+                String sqlVal = "SELECT COUNT(*) cnt FROM RESERVAS WHERE id_espacio = ? AND id_reserva <> ? "
+                    + "AND estado NOT IN ('CANCELADA') AND (fecha_inicio < ? AND fecha_fin > ?)";
+                PreparedStatement psVal = conn.prepareStatement(sqlVal);
+                psVal.setInt(1, idEspacio);
+                psVal.setInt(2, idReserva);
+                psVal.setTimestamp(3, tsFin);
+                psVal.setTimestamp(4, tsIni);
+                ResultSet rsVal = psVal.executeQuery();
+                int cruces = 0;
+                if (rsVal.next()) cruces = rsVal.getInt("cnt");
+                psVal.close();
+                if (cruces > 0) {
+                    sendJson(exchange, 409, "{\"success\":false,\"error\":\"El espacio ya tiene una reserva en ese rango\"}");
+                    return;
+                }
+
+                Espacio esp = new EspacioDAO().buscarPorId(idEspacio);
+                if (esp == null) {
+                    sendJson(exchange, 400, "{\"success\":false,\"error\":\"Espacio no encontrado\"}");
+                    return;
+                }
+
+                double horas = (tsFin.getTime() - tsIni.getTime()) / (1000.0 * 60 * 60);
+                double monto = esp.getPrecioPorHora() * horas;
+
+                String sqlUpd = "UPDATE RESERVAS SET id_cliente=?, id_espacio=?, fecha_inicio=?, fecha_fin=?, monto_total=? WHERE id_reserva=?";
+                PreparedStatement psUpd = conn.prepareStatement(sqlUpd);
+                psUpd.setInt(1, idCliente);
+                psUpd.setInt(2, idEspacio);
+                psUpd.setTimestamp(3, tsIni);
+                psUpd.setTimestamp(4, tsFin);
+                psUpd.setDouble(5, monto);
+                psUpd.setInt(6, idReserva);
+                psUpd.executeUpdate();
+
+                String sqlPago = "UPDATE PAGOS SET monto=? WHERE id_reserva=? AND estado_pago='PENDIENTE'";
+                PreparedStatement psPago = conn.prepareStatement(sqlPago);
+                psPago.setDouble(1, monto);
+                psPago.setInt(2, idReserva);
+                psPago.executeUpdate();
+
+                conn.commit();
+                sendJson(exchange, 200, "{\"success\":true,\"message\":\"Reserva actualizada\",\"monto\":" + monto + "}");
+            } finally {
+                Conexion.cerrar(conn);
+            }
+        }
+
+        private String reservaToJson(Reserva r) {
+            return "{"
+                + "\"idReserva\":" + r.getIdReserva() + ","
+                + "\"idCliente\":" + r.getCliente().getIdCliente() + ","
+                + "\"nombreCliente\":\"" + esc(r.getCliente().getNombre() + " " + r.getCliente().getApellido()) + "\","
+                + "\"idEspacio\":" + r.getEspacio().getIdEspacio() + ","
+                + "\"nombreEspacio\":\"" + esc(r.getEspacio().getNombre()) + "\","
+                + "\"fechaInicio\":\"" + dateFormat.format(r.getFechaInicio()) + "\","
+                + "\"fechaFin\":\"" + dateFormat.format(r.getFechaFin()) + "\","
+                + "\"montoTotal\":" + r.getMontoTotal() + ","
+                + "\"estado\":\"" + esc(r.getEstado()) + "\""
+                + "}";
         }
 
         // ---- ESPACIOS ----
@@ -432,13 +684,17 @@ public class SpaceWorkApplication {
         }
 
         private String espacioToJson(Espacio e) {
+            String imgJson = e.getUrlImagen() != null
+                ? "\"" + e.getUrlImagen().replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+                : "null";
             return "{\"idEspacio\":" + e.getIdEspacio()
                 + ",\"nombre\":\"" + esc(e.getNombre()) + "\""
                 + ",\"tipo\":\"" + esc(e.getTipo()) + "\""
                 + ",\"capacidad\":" + e.getCapacidad()
                 + ",\"ubicacion\":\"" + esc(e.getUbicacion()) + "\""
                 + ",\"precioPorHora\":" + e.getPrecioPorHora()
-                + ",\"estado\":\"" + esc(e.getEstado()) + "\"}";
+                + ",\"estado\":\"" + esc(e.getEstado()) + "\""
+                + ",\"urlImagen\":" + imgJson + "}";
         }
 
         private void handlePostEspacio(HttpExchange exchange) throws Exception {
@@ -449,6 +705,9 @@ public class SpaceWorkApplication {
             e.setCapacidad(Integer.parseInt(extractJsonNum(body, "capacidad")));
             e.setUbicacion(extractJson(body, "ubicacion"));
             e.setPrecioPorHora(Double.parseDouble(extractJsonNum(body, "precioPorHora")));
+            String urlImagen = extractJson(body, "urlImagen");
+            System.out.println("DEBUG: urlImagen extraído = " + (urlImagen != null ? urlImagen.substring(0, Math.min(50, urlImagen.length())) + "..." : "NULL"));
+            e.setUrlImagen(urlImagen);
             e.setEstado("ACTIVO");
             new EspacioDAO().insertar(e);
             sendJson(exchange, 200, "{\"success\":true}");
@@ -458,11 +717,18 @@ public class SpaceWorkApplication {
             String body = readBody(exchange);
             Espacio e = new EspacioDAO().buscarPorId(id);
             if (e == null) { sendJson(exchange, 404, "{\"success\":false}"); return; }
-            if (extractJson(body, "nombre") != null) e.setNombre(extractJson(body, "nombre"));
-            if (extractJson(body, "tipo") != null) e.setTipo(extractJson(body, "tipo"));
-            if (extractJsonNum(body, "capacidad") != null) e.setCapacidad(Integer.parseInt(extractJsonNum(body, "capacidad")));
-            if (extractJson(body, "ubicacion") != null) e.setUbicacion(extractJson(body, "ubicacion"));
-            if (extractJsonNum(body, "precioPorHora") != null) e.setPrecioPorHora(Double.parseDouble(extractJsonNum(body, "precioPorHora")));
+            String vNombre = extractJson(body, "nombre");
+            String vTipo = extractJson(body, "tipo");
+            String vUbicacion = extractJson(body, "ubicacion");
+            String vCapacidad = extractJsonNum(body, "capacidad");
+            String vPrecio = extractJsonNum(body, "precioPorHora");
+            String vImagen = extractJson(body, "urlImagen");
+            if (vNombre != null && !vNombre.isEmpty()) e.setNombre(vNombre);
+            if (vTipo != null && !vTipo.isEmpty()) e.setTipo(vTipo);
+            if (vCapacidad != null) e.setCapacidad(Integer.parseInt(vCapacidad));
+            if (vUbicacion != null && !vUbicacion.isEmpty()) e.setUbicacion(vUbicacion);
+            if (vPrecio != null) e.setPrecioPorHora(Double.parseDouble(vPrecio));
+            if (vImagen != null && !vImagen.isEmpty()) e.setUrlImagen(vImagen);
             new EspacioDAO().actualizar(e);
             sendJson(exchange, 200, "{\"success\":true}");
         }
@@ -491,14 +757,106 @@ public class SpaceWorkApplication {
 
         private void handlePostCliente(HttpExchange exchange) throws Exception {
             String body = readBody(exchange);
+            String nombre = extractJson(body, "nombre");
+            String apellido = extractJson(body, "apellido");
+            String dni = extractJson(body, "dni");
+            String email = extractJson(body, "email");
+            String telefono = extractJson(body, "telefono");
+            
+            // Usar contraseña del usuario si la proveyó, sino generar aleatoria
+            String passwordBody = extractJson(body, "password");
+            boolean passwordProvista = passwordBody != null && !passwordBody.trim().isEmpty();
+            String passwordPlano = passwordProvista ? passwordBody : generarPasswordAleatorio();
+            String passwordHash = com.spacework.util.HashUtil.sha256(passwordPlano);
+            
+            // Log para testing (remover en producción)
+            if (!passwordProvista) System.out.println("[REGISTRO] Email: " + email + " | Password generada: " + passwordPlano);
+            
+            // Crear cliente con password
             Cliente c = new Cliente();
-            c.setNombre(extractJson(body, "nombre"));
-            c.setApellido(extractJson(body, "apellido"));
-            c.setDni(extractJson(body, "dni"));
-            c.setEmail(extractJson(body, "email"));
-            c.setTelefono(extractJson(body, "telefono"));
-            new ClienteDAO().insertar(c);
-            sendJson(exchange, 200, "{\"success\":true}");
+            c.setNombre(nombre);
+            c.setApellido(apellido);
+            c.setDni(dni);
+            c.setEmail(email);
+            c.setTelefono(telefono);
+            c.setPassword(passwordHash);
+            c.setEstado("ACTIVO");
+            
+            try {
+                new ClienteDAO().insertar(c);
+            } catch (Exception ex) {
+                String msg = ex.getMessage() != null ? ex.getMessage() : "";
+                String friendly;
+                if (msg.contains("UQ_EMAIL_CLIENTE") || msg.contains("UQ_EMAIL")) {
+                    friendly = "Este email ya est\u00e1 registrado. Usa \"Recuperar Contrase\u00f1a\" si olvidaste tu acceso.";
+                } else if (msg.contains("UQ_DNI")) {
+                    friendly = "Este DNI ya est\u00e1 registrado. Usa \"Recuperar Contrase\u00f1a\" si olvidaste tu acceso.";
+                } else {
+                    friendly = msg.replace("\"","'").replace("\n"," ").replace("\r","");
+                }
+                sendJson(exchange, 409, "{\"success\":false,\"error\":\"" + friendly + "\"}");
+                return;
+            }
+            
+            // Intentar enviar email (no falla el registro si el email falla)
+            try {
+                com.spacework.util.EmailUtil.enviarCredencialesCliente(email, nombre, passwordPlano);
+            } catch (Exception emailEx) {
+                System.out.println("[REGISTRO] Advertencia: no se pudo enviar email: " + emailEx.getMessage());
+            }
+            
+            sendJson(exchange, 200, "{\"success\":true,\"message\":\"Cuenta creada exitosamente. Te hemos enviado tu contrase\u00f1a al correo registrado.\"}");
+
+        }
+        
+        private void handleRecuperarPassword(HttpExchange exchange) throws Exception {
+            String body = readBody(exchange);
+            String email = extractJson(body, "email");
+            if (email == null || email.isEmpty()) {
+                sendJson(exchange, 400, "{\"success\":false,\"error\":\"Email requerido\"}");
+                return;
+            }
+            Cliente c = new ClienteDAO().buscarPorEmail(email);
+            if (c == null) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"No existe una cuenta con ese email\"}");
+                return;
+            }
+            String nuevaPassword = generarPasswordAleatorio();
+            String hashNuevo = com.spacework.util.HashUtil.sha256(nuevaPassword);
+            // Actualizar en BD
+            java.sql.Connection conn = com.spacework.util.Conexion.getConexion();
+            try {
+                java.sql.PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE CLIENTES SET password = ? WHERE email = ?");
+                ps.setString(1, hashNuevo);
+                ps.setString(2, email);
+                ps.executeUpdate();
+                conn.commit();
+            } finally {
+                com.spacework.util.Conexion.cerrar(conn);
+            }
+            System.out.println("[RECUPERAR] Email: " + email + " | Nueva password: " + nuevaPassword);
+            // Intentar enviar email
+            String msgFinal;
+            try {
+                com.spacework.util.EmailUtil.enviarCredencialesCliente(email, c.getNombre(), nuevaPassword);
+                msgFinal = "Hemos enviado tu nueva contrase\u00f1a al correo " + email + ". Revisa tu bandeja de entrada.";
+            } catch (Exception ex) {
+                System.out.println("[RECUPERAR] Email no enviado: " + ex.getMessage());
+                msgFinal = "Contrase\u00f1a restablecida. Revisa tu correo para obtener el acceso.";
+            }
+            sendJson(exchange, 200, "{\"success\":true,\"message\":\"" + msgFinal + "\"}");
+        }
+
+        // Generar contraseña aleatoria de 8 caracteres
+        private String generarPasswordAleatorio() {
+            String caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
+            StringBuilder sb = new StringBuilder();
+            java.util.Random rand = new java.util.Random();
+            for (int i = 0; i < 8; i++) {
+                sb.append(caracteres.charAt(rand.nextInt(caracteres.length())));
+            }
+            return sb.toString();
         }
 
         private void handlePutCliente(HttpExchange exchange, int id) throws Exception {
@@ -516,7 +874,56 @@ public class SpaceWorkApplication {
             sendJson(exchange, 200, "{\"success\":true}");
         }
 
+        // ---- AUTH HELPER ----
+        private boolean requireAuth(HttpExchange exchange) throws IOException {
+            String auth = exchange.getRequestHeaders().getFirst("Authorization");
+            if (auth == null || !auth.startsWith("Bearer ")) {
+                sendJson(exchange, 401, "{\"success\":false,\"error\":\"Token requerido\"}");
+                return false;
+            }
+            String token = auth.substring(7);
+            com.spacework.util.JwtUtil jwtUtil = new com.spacework.util.JwtUtil();
+            if (!jwtUtil.validarToken(token)) {
+                sendJson(exchange, 401, "{\"success\":false,\"error\":\"Token inválido o expirado\"}");
+                return false;
+            }
+            return true;
+        }
+
+        private String getRoleFromToken(HttpExchange exchange) {
+            try {
+                String auth = exchange.getRequestHeaders().getFirst("Authorization");
+                if (auth == null || !auth.startsWith("Bearer ")) {
+                    return null;
+                }
+                String token = auth.substring(7);
+                com.spacework.util.JwtUtil jwtUtil = new com.spacework.util.JwtUtil();
+                io.jsonwebtoken.Claims claims = jwtUtil.obtenerClaims(token);
+                if (claims != null) {
+                    return (String) claims.get("rol");
+                }
+            } catch (Exception e) {
+                System.err.println("[Error] Error al extraer rol del token: " + e.getMessage());
+            }
+            return null;
+        }
+
         // ---- PAGOS ----
+        private void handleGetPagoById(HttpExchange exchange, int idPago) throws Exception {
+            Pago pago = new PagoDAO().buscarPorId(idPago);
+            if (pago == null) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Pago no encontrado\"}");
+                return;
+            }
+            String json = "{\"idPago\":" + pago.getIdPago()
+                + ",\"idReserva\":" + pago.getIdReserva()
+                + ",\"monto\":" + pago.getMonto()
+                + ",\"metodoPago\":\"" + esc(pago.getMetodoPago() != null ? pago.getMetodoPago() : "") + "\""
+                + ",\"estadoPago\":\"" + esc(pago.getEstadoPago()) + "\""
+                + "}";
+            sendJson(exchange, 200, "{\"success\":true,\"data\":" + json + "}");
+        }
+
         private void handleGetPagos(HttpExchange exchange) throws Exception {
             String sql = "SELECT p.id_pago, p.id_reserva, p.monto, p.metodo_pago, p.estado_pago, "
                        + "p.fecha_creacion, p.fecha_pago, NVL(p.descuento_aplicado, 0) AS descuento_aplicado, "
@@ -561,6 +968,51 @@ public class SpaceWorkApplication {
                 return;
             }
 
+            // VALIDAR RESTRICCIONES DE MÉTODO DE PAGO POR ROL
+            String rolUsuario = getRoleFromToken(exchange);
+            
+            // EFECTIVO y TRANSFERENCIA: Solo para ADMIN o ADMINISTRADOR
+            boolean esAdmin = "ADMIN".equals(rolUsuario) || "ADMINISTRADOR".equals(rolUsuario);
+            if (("EFECTIVO".equals(metodoPago) || "TRANSFERENCIA".equals(metodoPago)) && !esAdmin) {
+                sendJson(exchange, 403, "{\"success\":false,\"error\":\"Acceso denegado: El método " + metodoPago + " solo está disponible para administradores\"}");
+                return;
+            }
+            
+            // TARJETA: Validar datos de tarjeta
+            if ("TARJETA".equals(metodoPago)) {
+                String numeroTarjeta = extractJson(body, "numeroTarjeta");
+                String expiracion = extractJson(body, "expiracion");
+                String cvv = extractJson(body, "cvv");
+                
+                // Validar formato de tarjeta (debe ser 16 dígitos)
+                if (numeroTarjeta == null || !numeroTarjeta.matches("\\d{16}")) {
+                    sendJson(exchange, 400, "{\"success\":false,\"error\":\"Número de tarjeta inválido (debe ser 16 dígitos)\"}");
+                    return;
+                }
+                
+                // Validar expiración (formato MM/YY)
+                if (expiracion == null || !expiracion.matches("\\d{2}/\\d{2}")) {
+                    sendJson(exchange, 400, "{\"success\":false,\"error\":\"Fecha de expiración inválida (formato MM/YY)\"}");
+                    return;
+                }
+                
+                // Validar CVV (3-4 dígitos)
+                if (cvv == null || !cvv.matches("\\d{3,4}")) {
+                    sendJson(exchange, 400, "{\"success\":false,\"error\":\"CVV inválido (debe ser 3-4 dígitos)\"}");
+                    return;
+                }
+                
+                // SIMULAR PROCESAMIENTO DE PASARELA DE PAGO
+                // Rechazar tarjetas que comienzan con 4000 0000 0000 0002 (simulada para fallos)
+                if (numeroTarjeta.equals("4000000000000002")) {
+                    sendJson(exchange, 400, "{\"success\":false,\"error\":\"Pasarela de pago: Transacción rechazada. Verifique los datos de su tarjeta.\"}");
+                    return;
+                }
+                
+                // Aceptar todas las demás tarjetas válidas
+                System.out.println("[Pasarela TARJETA] Procesando tarjeta: " + numeroTarjeta.substring(0, 4) + "****" + numeroTarjeta.substring(12) + " - Expiración: " + expiracion);
+            }
+
             // Descuento aplicado (opcionales)
             String montoFinalStr    = extractJsonNum(body, "montoFinal");
             String idDescuentoStr   = extractJsonNum(body, "idDescuento");
@@ -603,6 +1055,7 @@ public class SpaceWorkApplication {
                               + "FROM RESERVAS r JOIN CLIENTES c ON r.id_cliente = c.id_cliente "
                               + "WHERE r.id_reserva = ?";
             Connection conn = null;
+            TokenEvaluacion tokenEval = null;  // Declarar fuera para acceso posterior
             try {
                 conn = Conexion.getConexion();
                 java.sql.PreparedStatement ps = conn.prepareStatement(sqlCliente);
@@ -624,7 +1077,7 @@ public class SpaceWorkApplication {
                         java.util.Date ahora       = new java.util.Date();
                         java.util.Date expiracion  = new java.util.Date(ahora.getTime() + (30L * 24 * 60 * 60 * 1000));
 
-                        TokenEvaluacion tokenEval = new TokenEvaluacion();
+                        tokenEval = new TokenEvaluacion();
                         tokenEval.setIdPago(idPago);
                         tokenEval.setToken(token);
                         tokenEval.setEmailCliente(emailCliente);
@@ -661,9 +1114,44 @@ public class SpaceWorkApplication {
                 Conexion.cerrar(conn);
             }
 
+            // Retornar token de evaluación al cliente para que pueda evaluar inmediatamente
             sendJson(exchange, 200, "{\"success\":true,\"message\":\"Pago procesado correctamente\""
                 + ",\"descuentoAplicado\":" + descuentoMonto
-                + ",\"montoFinal\":" + montoAPagar + "}");
+                + ",\"montoFinal\":" + montoAPagar 
+                + ",\"data\":{\"tokenEvaluacion\":\"" + (tokenEval != null ? tokenEval.getToken() : "") + "\"}}");
+        }
+
+        private void handlePutPago(HttpExchange exchange, int idPago) throws Exception {
+            Pago p = new PagoDAO().buscarPorId(idPago);
+            if (p == null) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Pago no encontrado\"}");
+                return;
+            }
+
+            String body = readBody(exchange);
+            String estado = extractJson(body, "estadoPago");
+            String metodo = extractJson(body, "metodoPago");
+            String montoStr = extractJsonNum(body, "monto");
+
+            if (estado != null && !estado.isEmpty()) p.setEstadoPago(estado);
+            if (metodo != null && !metodo.isEmpty()) p.setMetodoPago(metodo);
+            if (montoStr != null && !montoStr.isEmpty()) p.setMonto(Double.parseDouble(montoStr));
+
+            boolean ok = new PagoDAO().actualizar(p);
+            if (!ok) {
+                sendJson(exchange, 500, "{\"success\":false,\"error\":\"No se pudo actualizar el pago\"}");
+                return;
+            }
+            sendJson(exchange, 200, "{\"success\":true,\"message\":\"Pago actualizado\"}");
+        }
+
+        private void handleDeletePago(HttpExchange exchange, int idPago) throws Exception {
+            boolean ok = new PagoDAO().cambiarEstado(idPago, "RECHAZADO");
+            if (!ok) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Pago no encontrado\"}");
+                return;
+            }
+            sendJson(exchange, 200, "{\"success\":true,\"message\":\"Pago marcado como RECHAZADO\"}");
         }
 
         private void handlePostPago(HttpExchange exchange) throws Exception {
@@ -861,17 +1349,35 @@ public class SpaceWorkApplication {
         // ---- EVALUACIONES ----
         private void handleGetEvaluaciones(HttpExchange exchange) throws Exception {
             String sql = "SELECT e.id_evaluacion, e.id_reserva, e.id_cliente, e.calificacion, " +
-                         "e.comentario, e.fecha_evaluacion, c.nombre, c.apellido, c.email " +
+                         "       e.comentario, e.fecha_evaluacion AS fecha_ref, c.nombre, c.apellido, c.email, " +
+                         "       es.nombre as nombreEspacio, 'COMPLETADA' as estado " +
                          "FROM EVALUACIONES e " +
                          "JOIN CLIENTES c ON e.id_cliente = c.id_cliente " +
-                         "ORDER BY e.fecha_evaluacion DESC";
-            
+                         "JOIN RESERVAS r ON e.id_reserva = r.id_reserva " +
+                         "JOIN ESPACIOS es ON r.id_espacio = es.id_espacio " +
+                         "UNION ALL " +
+                         "SELECT 0 AS id_evaluacion, r.id_reserva, r.id_cliente, 0 AS calificacion, " +
+                         "       NULL AS comentario, p.fecha_pago AS fecha_ref, c.nombre, c.apellido, c.email, " +
+                         "       es.nombre as nombreEspacio, " +
+                         "       CASE WHEN EXISTS (SELECT 1 FROM NOTIFICACIONES n " +
+                         "                         WHERE n.tipo = 'EVALUACION' " +
+                         "                           AND n.asunto = 'Solicitar evaluación - Reserva #' || r.id_reserva " +
+                         "                           AND n.leida = 1) " +
+                         "            THEN 'ENVIADO' ELSE 'PENDIENTE' END as estado " +
+                         "FROM PAGOS p " +
+                         "JOIN RESERVAS r ON p.id_reserva = r.id_reserva " +
+                         "JOIN CLIENTES c ON r.id_cliente = c.id_cliente " +
+                         "JOIN ESPACIOS es ON r.id_espacio = es.id_espacio " +
+                         "WHERE p.estado_pago = 'COMPLETADO' " +
+                         "  AND NOT EXISTS (SELECT 1 FROM EVALUACIONES ev WHERE ev.id_reserva = p.id_reserva) " +
+                         "ORDER BY fecha_ref DESC";
+
             Connection conn = Conexion.getConexion();
             java.sql.Statement stmt = conn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
             StringBuilder sb = new StringBuilder("[");
             boolean first = true;
-            
+
             while (rs.next()) {
                 if (!first) sb.append(",");
                 first = false;
@@ -880,10 +1386,12 @@ public class SpaceWorkApplication {
                 sb.append("\"idReserva\":").append(rs.getInt("id_reserva")).append(",");
                 sb.append("\"idCliente\":").append(rs.getInt("id_cliente")).append(",");
                 sb.append("\"calificacion\":").append(rs.getInt("calificacion")).append(",");
-                sb.append("\"comentario\":\"").append(esc(rs.getString("comentario"))).append("\",");
+                sb.append("\"comentarios\":\"").append(esc(rs.getString("comentario"))).append("\",");
                 sb.append("\"nombreCliente\":\"").append(esc(rs.getString("nombre") + " " + rs.getString("apellido"))).append("\",");
+                sb.append("\"nombreEspacio\":\"").append(esc(rs.getString("nombreEspacio"))).append("\",");
                 sb.append("\"emailCliente\":\"").append(esc(rs.getString("email"))).append("\",");
-                java.util.Date fe = rs.getDate("fecha_evaluacion");
+                sb.append("\"estado\":\"").append(esc(rs.getString("estado"))).append("\",");
+                java.util.Date fe = rs.getTimestamp("fecha_ref");
                 sb.append("\"fechaEvaluacion\":\"").append(fe != null ? dateFormat.format(fe) : "").append("\"");
                 sb.append("}");
             }
@@ -907,6 +1415,7 @@ public class SpaceWorkApplication {
             // Crear evaluación
             Evaluacion evaluacion = new Evaluacion();
             evaluacion.setIdReserva(idReserva);
+            evaluacion.setIdCliente(reserva.getCliente().getIdCliente());
             evaluacion.setCalificacion(calificacion);
             evaluacion.setComentario(comentario != null ? comentario : "");
             evaluacion.setFechaEvaluacion(new java.util.Date());
@@ -916,6 +1425,52 @@ public class SpaceWorkApplication {
             new ReservaDAO().cambiarEstado(idReserva, "COMPLETADA");
 
             sendJson(exchange, 200, "{\"success\":true,\"message\":\"Evaluación registrada\"}");
+        }
+
+        private void handleGetEvaluacionById(HttpExchange exchange, int idEvaluacion) throws Exception {
+            Evaluacion ev = new EvaluacionDAO().buscarPorId(idEvaluacion);
+            if (ev == null) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Evaluación no encontrada\"}");
+                return;
+            }
+            String json = "{"
+                + "\"idEvaluacion\":" + ev.getIdEvaluacion() + ","
+                + "\"idReserva\":" + ev.getIdReserva() + ","
+                + "\"idCliente\":" + ev.getIdCliente() + ","
+                + "\"calificacion\":" + ev.getCalificacion() + ","
+                + "\"comentario\":\"" + esc(ev.getComentario()) + "\""
+                + "}";
+            sendJson(exchange, 200, "{\"success\":true,\"data\":" + json + "}");
+        }
+
+        private void handlePutEvaluacion(HttpExchange exchange, int idEvaluacion) throws Exception {
+            Evaluacion ev = new EvaluacionDAO().buscarPorId(idEvaluacion);
+            if (ev == null) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Evaluación no encontrada\"}");
+                return;
+            }
+
+            String body = readBody(exchange);
+            String calStr = extractJsonNum(body, "calificacion");
+            String comentario = extractJson(body, "comentario");
+            if (calStr != null && !calStr.isEmpty()) ev.setCalificacion(Integer.parseInt(calStr));
+            if (comentario != null) ev.setComentario(comentario);
+
+            boolean ok = new EvaluacionDAO().actualizar(ev);
+            if (!ok) {
+                sendJson(exchange, 500, "{\"success\":false,\"error\":\"No se pudo actualizar la evaluación\"}");
+                return;
+            }
+            sendJson(exchange, 200, "{\"success\":true,\"message\":\"Evaluación actualizada\"}");
+        }
+
+        private void handleDeleteEvaluacion(HttpExchange exchange, int idEvaluacion) throws Exception {
+            boolean ok = new EvaluacionDAO().eliminar(idEvaluacion);
+            if (!ok) {
+                sendJson(exchange, 404, "{\"success\":false,\"error\":\"Evaluación no encontrada\"}");
+                return;
+            }
+            sendJson(exchange, 200, "{\"success\":true,\"message\":\"Evaluación eliminada\"}");
         }
 
         // ---- NOTIFICACIONES ----
@@ -1088,9 +1643,13 @@ public class SpaceWorkApplication {
         // ---- HELPERS ----
         private String readBody(HttpExchange exchange) throws IOException {
             InputStream is = exchange.getRequestBody();
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
             byte[] buf = new byte[8192];
-            int n = is.read(buf);
-            return n > 0 ? new String(buf, 0, n, "UTF-8") : "";
+            int n;
+            while ((n = is.read(buf)) != -1) {
+                baos.write(buf, 0, n);
+            }
+            return baos.toString("UTF-8");
         }
 
         private String extractJson(String json, String key) {
@@ -1130,6 +1689,99 @@ public class SpaceWorkApplication {
                 return json.substring(start, end);
             }
             return null;
+        }
+
+        private void handleEnviarEvaluacionPorReserva(HttpExchange exchange, int idReserva) throws Exception {
+            try {
+                Connection conn = Conexion.getConexion();
+                String sql = "SELECT te.token, te.email_cliente, c.nombre || ' ' || c.apellido AS nombre_cliente, r.id_reserva "
+                           + "FROM TOKENS_EVALUACION te "
+                           + "JOIN PAGOS p ON te.id_pago = p.id_pago "
+                           + "JOIN RESERVAS r ON p.id_reserva = r.id_reserva "
+                           + "JOIN CLIENTES c ON r.id_cliente = c.id_cliente "
+                           + "WHERE r.id_reserva = ?";
+                java.sql.PreparedStatement ps = conn.prepareStatement(sql);
+                ps.setInt(1, idReserva);
+                ResultSet rs = ps.executeQuery();
+
+                if (!rs.next()) {
+                    // No hay token: generar uno nuevo
+                    Conexion.cerrar(conn);
+                    conn = Conexion.getConexion();
+                    String sqlPago = "SELECT p.id_pago, c.nombre || ' ' || c.apellido AS nombre_cliente, c.email "
+                                   + "FROM PAGOS p "
+                                   + "JOIN RESERVAS r ON p.id_reserva = r.id_reserva "
+                                   + "JOIN CLIENTES c ON r.id_cliente = c.id_cliente "
+                                   + "WHERE p.id_reserva = ? AND p.estado_pago = 'COMPLETADO'";
+                    java.sql.PreparedStatement ps2 = conn.prepareStatement(sqlPago);
+                    ps2.setInt(1, idReserva);
+                    ResultSet rs2 = ps2.executeQuery();
+                    if (!rs2.next()) {
+                        sendJson(exchange, 404, "{\"success\":false,\"error\":\"Pago completado no encontrado para esta reserva\"}");
+                        Conexion.cerrar(conn);
+                        return;
+                    }
+                    int idPago = rs2.getInt("id_pago");
+                    String emailCliente = rs2.getString("email");
+                    String nombreCliente = rs2.getString("nombre_cliente");
+                    String newToken = java.util.UUID.randomUUID().toString().replace("-","");
+                    String sqlInsToken = "INSERT INTO TOKENS_EVALUACION (id_token, id_pago, token, email_cliente, fecha_expiracion) "
+                                      + "VALUES (SEQ_TOKENS_EVALUACION.NEXTVAL, ?, ?, ?, SYSDATE + 7)";
+                    java.sql.PreparedStatement psIns = conn.prepareStatement(sqlInsToken);
+                    psIns.setInt(1, idPago);
+                    psIns.setString(2, newToken);
+                    psIns.setString(3, emailCliente);
+                    psIns.executeUpdate();
+                    conn.commit();
+                    boolean enviado = com.spacework.util.EmailUtil.enviarFormularioEvaluacion(
+                        emailCliente, nombreCliente, idReserva, newToken, "http://localhost:8080");
+                    if (enviado) {
+                        try (java.sql.PreparedStatement psN = conn.prepareStatement(
+                                "UPDATE NOTIFICACIONES SET leida = 1 WHERE tipo = 'EVALUACION' AND asunto = ?")) {
+                            psN.setString(1, "Solicitar evaluación - Reserva #" + idReserva);
+                            psN.executeUpdate();
+                            conn.commit();
+                        }
+                    }
+                    Conexion.cerrar(conn);
+                    if (enviado) {
+                        sendJson(exchange, 200, "{\"success\":true,\"message\":\"Email enviado a " + esc(emailCliente) + "\"}");
+                    } else {
+                        sendJson(exchange, 500, "{\"success\":false,\"error\":\"No se pudo enviar el correo. Verifica mail.properties\"}");
+                    }
+                    return;
+                }
+
+                String token = rs.getString("token");
+                String emailCliente = rs.getString("email_cliente");
+                String nombreCliente = rs.getString("nombre_cliente");
+                Conexion.cerrar(conn);
+
+                boolean enviado = com.spacework.util.EmailUtil.enviarFormularioEvaluacion(
+                    emailCliente, nombreCliente, idReserva, token, "http://localhost:8080");
+
+                if (enviado) {
+                    Connection connMark = Conexion.getConexion();
+                    try (java.sql.PreparedStatement psN = connMark.prepareStatement(
+                            "UPDATE NOTIFICACIONES SET leida = 1 WHERE tipo = 'EVALUACION' AND asunto = ?")) {
+                        psN.setString(1, "Solicitar evaluación - Reserva #" + idReserva);
+                        psN.executeUpdate();
+                        connMark.commit();
+                    } finally {
+                        Conexion.cerrar(connMark);
+                    }
+                }
+
+                if (enviado) {
+                    System.out.println("[Evaluaciones] ✅ Email enviado a: " + emailCliente);
+                    sendJson(exchange, 200, "{\"success\":true,\"message\":\"Email enviado a " + esc(emailCliente) + "\"}");
+                } else {
+                    sendJson(exchange, 500, "{\"success\":false,\"error\":\"No se pudo enviar el correo a " + esc(emailCliente) + "\"}");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                sendJson(exchange, 500, "{\"success\":false,\"error\":\"" + esc(e.getMessage()) + "\"}");
+            }
         }
 
         private void handleEnviarEvaluacionDesdeNotificacion(HttpExchange exchange, int idNotificacion) throws Exception {
@@ -1190,6 +1842,14 @@ public class SpaceWorkApplication {
                     );
 
                     if (enviado) {
+                        try {
+                            java.sql.PreparedStatement psLeida = conn.prepareStatement(
+                                "UPDATE NOTIFICACIONES SET leida=1 WHERE id_notificacion=?");
+                            psLeida.setInt(1, idNotificacion);
+                            psLeida.executeUpdate();
+                            conn.commit();
+                            psLeida.close();
+                        } catch (Exception ignored) {}
                         System.out.println("[Notificaciones] ✅ Email evaluación enviado a: " + emailCliente);
                         sendJson(exchange, 200, "{\"success\":true,\"message\":\"Email de evaluación enviado a " + esc(emailCliente) + " | Cliente: " + esc(nombreCliente) + "\"}");
                     } else {
@@ -1228,30 +1888,89 @@ public class SpaceWorkApplication {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             String path = exchange.getRequestURI().getPath();
+            String resourcePath = "static" + (path.equals("/") ? "/index.html" : path);
             
-            // Si es una ruta raíz o sin extensión, sirve index.html (SPA)
-            if (path.equals("/") || !path.contains(".")) {
-                String indexPath = STATIC_DIR + "/index.html";
-                File indexFile = new File(indexPath);
+            try {
+                // Intentar cargar desde classpath (funciona en JAR y en desarrollo)
+                InputStream resourceStream = getResourceAsStream(resourcePath);
                 
-                if (indexFile.exists()) {
-                    byte[] fileContent = Files.readAllBytes(indexFile.toPath());
-                    exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
-                    exchange.sendResponseHeaders(200, fileContent.length);
-                    exchange.getResponseBody().write(fileContent);
-                } else {
-                    String response = "<h1>404 - Archivo no encontrado</h1>";
-                    exchange.getResponseHeaders().set("Content-Type", "text/html");
-                    exchange.sendResponseHeaders(404, response.getBytes().length);
-                    exchange.getResponseBody().write(response.getBytes());
+                if (resourceStream != null) {
+                    byte[] content = readAllBytes(resourceStream);
+                    String mimeType = detectMimeType(resourcePath);
+                    
+                    exchange.getResponseHeaders().set("Content-Type", mimeType);
+                    exchange.getResponseHeaders().set("Cache-Control", "no-cache, no-store, must-revalidate");
+                    exchange.sendResponseHeaders(200, content.length);
+                    exchange.getResponseBody().write(content);
+                    exchange.close();
+                    return;
                 }
-            } else {
-                String response = "{\"error\": \"No encontrado\"}";
-                exchange.getResponseHeaders().set("Content-Type", "application/json");
-                exchange.sendResponseHeaders(404, response.getBytes().length);
-                exchange.getResponseBody().write(response.getBytes());
+                
+                // Si no existe y es ruta sin extensión, servir index.html para SPA
+                if (!path.contains(".") && !path.equals("/")) {
+                    InputStream indexStream = getResourceAsStream("static/index.html");
+                    if (indexStream != null) {
+                        byte[] content = readAllBytes(indexStream);
+                        exchange.getResponseHeaders().set("Content-Type", "text/html; charset=utf-8");
+                        exchange.sendResponseHeaders(200, content.length);
+                        exchange.getResponseBody().write(content);
+                        exchange.close();
+                        return;
+                    }
+                }
+                
+                // Archivo no encontrado
+                exchange.sendResponseHeaders(404, -1);
+                exchange.close();
+                
+            } catch (Exception e) {
+                try {
+                    exchange.sendResponseHeaders(500, -1);
+                } catch (Exception ignored) {}
+                exchange.close();
             }
-            exchange.close();
+        }
+        
+        private InputStream getResourceAsStream(String path) {
+            // Intenta primero desde el filesystem (target/classes)
+            File file = new File("target/classes/" + path);
+            if (file.exists() && file.isFile()) {
+                try {
+                    return new FileInputStream(file);
+                } catch (Exception e) {
+                    // Continuar a classpath
+                }
+            }
+            
+            // Intenta desde classpath (JAR)
+            return SpaceWorkApplication.class.getClassLoader().getResourceAsStream(path);
+        }
+        
+        private byte[] readAllBytes(InputStream is) throws IOException {
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            int nRead;
+            byte[] data = new byte[16384];
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            buffer.flush();
+            is.close();
+            return buffer.toByteArray();
+        }
+        
+        private String detectMimeType(String path) {
+            if (path.endsWith(".html")) return "text/html; charset=utf-8";
+            if (path.endsWith(".css")) return "text/css; charset=utf-8";
+            if (path.endsWith(".js")) return "application/javascript; charset=utf-8";
+            if (path.endsWith(".json")) return "application/json; charset=utf-8";
+            if (path.endsWith(".png")) return "image/png";
+            if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+            if (path.endsWith(".gif")) return "image/gif";
+            if (path.endsWith(".svg")) return "image/svg+xml";
+            if (path.endsWith(".woff")) return "application/font-woff";
+            if (path.endsWith(".woff2")) return "application/font-woff2";
+            if (path.endsWith(".ttf")) return "application/font-ttf";
+            return "text/plain";
         }
     }
 }

@@ -95,6 +95,7 @@ public class EspacioRestController implements HttpHandler {
             String ubicacion = extractJsonString(body, "ubicacion");
             double precio = extractJsonDouble(body, "precioPorHora");
             
+            String urlImagen = extractJsonString(body, "urlImagen");
             Espacio espacio = new Espacio();
             espacio.setNombre(nombre);
             espacio.setTipo(tipo);
@@ -102,7 +103,8 @@ public class EspacioRestController implements HttpHandler {
             espacio.setUbicacion(ubicacion);
             espacio.setPrecioPorHora(precio);
             espacio.setEstado("ACTIVO");
-            
+            espacio.setUrlImagen(urlImagen);
+
             espacioDAO.insertar(espacio);
             String json = "{\"success\": true, \"message\": \"Espacio creado exitosamente\"}";
             sendResponse(exchange, 201, json);
@@ -126,6 +128,7 @@ public class EspacioRestController implements HttpHandler {
             String ubicacion = extractJsonString(body, "ubicacion");
             double precio = extractJsonDouble(body, "precioPorHora");
 
+            String urlImagen = extractJsonString(body, "urlImagen");
             Espacio espacio = new Espacio();
             espacio.setIdEspacio(id);
             espacio.setNombre(nombre);
@@ -133,6 +136,7 @@ public class EspacioRestController implements HttpHandler {
             espacio.setCapacidad(capacidad);
             espacio.setUbicacion(ubicacion);
             espacio.setPrecioPorHora(precio);
+            espacio.setUrlImagen(urlImagen);
 
             espacioDAO.actualizar(espacio);
             String json = "{\"success\": true, \"message\": \"Espacio actualizado\"}";
@@ -213,13 +217,15 @@ public class EspacioRestController implements HttpHandler {
         if (obj instanceof Espacio) {
             Espacio e = (Espacio) obj;
             return String.format(
-                "{\"idEspacio\": %d, \"nombre\": \"%s\", \"tipo\": \"%s\", \"capacidad\": %d, \"ubicacion\": \"%s\", \"precioPorHora\": %.2f, \"estado\": \"%s\"}",
+                "{\"idEspacio\": %d, \"nombre\": \"%s\", \"tipo\": \"%s\", \"capacidad\": %d, \"ubicacion\": \"%s\", \"precioPorHora\": %.2f, \"estado\": \"%s\", \"urlImagen\": %s}",
                 e.getIdEspacio(), esc(e.getNombre()), esc(e.getTipo()), e.getCapacidad(),
-                esc(e.getUbicacion()), e.getPrecioPorHora(), esc(e.getEstado())
+                esc(e.getUbicacion()), e.getPrecioPorHora(), esc(e.getEstado()),
+                e.getUrlImagen() != null ? ('"' + esc(e.getUrlImagen()) + '"') : "null"
             );
         }
         return "{}";
     }
+
 
     private String esc(String s) {
         if (s == null) return "";

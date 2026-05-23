@@ -127,6 +127,23 @@ public class Descuento {
                ahora.before(fechaFin) &&
                (usosMaximos == 0 || usosActuales < usosMaximos);
     }
+    
+    // Método para validar descuento con fecha y monto específicos
+    public boolean esValido(Date fechaActual, double monto) {
+        if (fechaActual == null || !"ACTIVO".equals(estado)) {
+            return false;
+        }
+        if (fechaActual.before(fechaInicio) || fechaActual.after(fechaFin)) {
+            return false;
+        }
+        if (monto < montoMinimo) {
+            return false;
+        }
+        if (usosActuales >= usosMaximos) {
+            return false;
+        }
+        return true;
+    }
 
     @Override
     public String toString() {

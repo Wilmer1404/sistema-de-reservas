@@ -71,16 +71,62 @@ public class EvaluacionRestController implements HttpHandler {
 
     private void handleGetAllEvaluaciones(HttpExchange exchange) throws IOException {
         try {
-            java.util.List<Evaluacion> evaluaciones = evaluacionDAO.listar();
             StringBuilder sb = new StringBuilder();
-            sb.append("{\"success\": true, \"count\": ").append(evaluaciones.size()).append(", \"data\": [");
+            sb.append("{\"success\": true, \"data\": [");
+            
+            int totalCount = 0;
+            
+            // 1. EVALUACIONES COMPLETADAS
+            java.util.List<Evaluacion> evaluaciones = evaluacionDAO.listar();
             for (int i = 0; i < evaluaciones.size(); i++) {
                 if (i > 0) sb.append(",");
                 sb.append(toJson(evaluaciones.get(i)));
             }
-            sb.append("]}");
+            totalCount = evaluaciones.size();
+            
+            // 2. EVALUACIONES PENDIENTES (pagos sin evaluación)
+            try {
+                java.sql.Connection conn = com.spacework.util.Conexion.getConexion();
+                String sqlPendientes = 
+                    "SELECT p.id_pago, r.id_reserva, r.id_cliente, c.nombre || ' ' || c.apellido as nombre_cliente, " +
+                    "       e.nombre, p.monto, p.fecha_pago " +
+                    "FROM PAGOS p " +
+                    "JOIN RESERVAS r ON p.id_reserva = r.id_reserva " +
+                    "JOIN CLIENTES c ON r.id_cliente = c.id_cliente " +
+                    "JOIN ESPACIOS e ON r.id_espacio = e.id_espacio " +
+                    "WHERE p.estado_pago = 'COMPLETADO' " +
+                    "  AND r.id_reserva NOT IN (SELECT id_reserva FROM EVALUACIONES) " +
+                    "ORDER BY p.fecha_pago DESC";
+                
+                java.sql.PreparedStatement ps = conn.prepareStatement(sqlPendientes);
+                java.sql.ResultSet rs = ps.executeQuery();
+                
+                int pendienteCount = 0;
+                while (rs.next()) {
+                    if (evaluaciones.size() > 0 || pendienteCount > 0) sb.append(",");
+                    sb.append("{\"idEvaluacion\": 0, \"idReserva\": ").append(rs.getInt("id_reserva"));
+                    sb.append(", \"idCliente\": ").append(rs.getInt("id_cliente"));
+                    sb.append(", \"calificacion\": 0, \"comentario\": null");
+                    sb.append(", \"fechaEvaluacion\": \"").append(rs.getTimestamp("fecha_pago"));
+                    sb.append("\", \"nombreCliente\": \"").append(rs.getString("nombre_cliente"));
+                    sb.append("\", \"nombreEspacio\": \"").append(rs.getString("nombre"));
+                    sb.append("\", \"estado\": \"PENDIENTE\"}");
+                    pendienteCount++;
+                }
+                totalCount += pendienteCount;
+                
+                rs.close();
+                ps.close();
+                conn.close();
+            } catch (Exception pe) {
+                System.err.println("[Evaluaciones] Error obteniendo pendientes: " + pe.getMessage());
+                pe.printStackTrace();
+            }
+            
+            sb.append("], \"count\": ").append(totalCount).append("}");
             sendResponse(exchange, 200, sb.toString());
         } catch (Exception e) {
+            e.printStackTrace();
             sendError(exchange, 500, "Error al listar: " + e.getMessage());
         }
     }

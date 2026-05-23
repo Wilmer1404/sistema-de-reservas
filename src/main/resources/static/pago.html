@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pago - SpaceWork</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="container">
+            <h1 class="logo">SpaceWork</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="payment-container">
+            <div class="card">
+                <h2>Procesar Pago</h2>
+                
+                <div id="pagoInfo" class="info-box">
+                    <!-- Se llena dinámicamente -->
+                </div>
+
+                <form id="pagoForm">
+                    <div class="form-group">
+                        <label for="metodoPago">Método de Pago</label>
+                        <select id="metodoPago" required>
+                            <option value="">Seleccione un método</option>
+                            <option value="EFECTIVO">Efectivo</option>
+                            <option value="TARJETA">Tarjeta de Crédito</option>
+                            <option value="TRANSFERENCIA">Transferencia Bancaria</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="codigoDescuento">Código de Descuento (opcional)</label>
+                        <input type="text" id="codigoDescuento" placeholder="Ingrese código">
+                        <button type="button" class="btn btn-secondary" onclick="validarDescuento()">
+                            Validar
+                        </button>
+                    </div>
+                    
+                    <div id="descuentoInfo" class="info-box" style="display:none;"></div>
+                    
+                    <button type="submit" class="btn btn-primary btn-full">Pagar Ahora</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/auth.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const pagoId = params.get('pagoId');
+
+        async function cargarPago() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/pagos/${pagoId}`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const pago = data.data;
+                    document.getElementById('pagoInfo').innerHTML = `
+                        <p><strong>Monto:</strong> $${pago.monto.toFixed(2)}</p>
+                        <p><strong>Subtotal:</strong> $${pago.monto.toFixed(2)}</p>
+                        <p id="montoFinal"><strong>Total con IGV:</strong> $${(pago.monto * 1.18).toFixed(2)}</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function validarDescuento() {
+            const codigo = document.getElementById('codigoDescuento').value;
+            if (!codigo) return;
+
+            try {
+                const response = await fetch('/api/descuentos/validar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ codigo })
+                });
+                const data = await response.json();
+                
+                if (data.valido) {
+                    document.getElementById('descuentoInfo').innerHTML = `
+                        <p><strong>Descuento ${data.porcentaje}%:</strong> -$${data.descuento.toFixed(2)}</p>
+                    `;
+                    document.getElementById('descuentoInfo').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        document.getElementById('pagoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const metodoPago = document.getElementById('metodoPago').value;
+            const codigoDescuento = document.getElementById('codigoDescuento').value || null;
+
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/pagos/${pagoId}/pagar`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({ metodoPago, codigoDescuento })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('Pago procesado exitosamente');
+                    if (data.data.tokenEvaluacion) {
+                        window.location.href = `evaluacion.html?token=${data.data.tokenEvaluacion}`;
+                    }
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al procesar el pago');
+            }
+        });
+
+        cargarPago();
+    </script>
+</body>
+</html>

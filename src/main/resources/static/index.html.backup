@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpaceWork - Sistema de Reservas</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<!-- ======================== LOGIN PAGE ======================== -->
+<div id="loginPage">
+    <div class="login-bg">
+        <div class="bg-circle c1"></div>
+        <div class="bg-circle c2"></div>
+        <div class="bg-circle c3"></div>
+    </div>
+    <div class="login-layout">
+        <div class="login-info">
+            <div class="brand-logo">
+                <span class="logo-icon">SW</span>
+                <span class="logo-text">SpaceWork</span>
+            </div>
+            <h2>Sistema de Gestión de Espacios</h2>
+            <p>Administra reservas, clientes y pagos de tu espacio de trabajo en un solo lugar.</p>
+            <ul class="feature-list">
+                <li>✔ Reservas en tiempo real</li>
+                <li>✔ Gestión de pagos con IGV</li>
+                <li>✔ Descuentos y promociones</li>
+                <li>✔ Evaluaciones y reportes</li>
+            </ul>
+        </div>
+        <div class="login-form-wrapper">
+            <div class="login-card">
+                <!-- TAB BUTTONS -->
+                <div style="display:flex;gap:0.5rem;margin-bottom:1.2rem;border-bottom:1px solid #e2e8f0;padding-bottom:0.8rem">
+                    <button type="button" class="tab-btn active" id="tabLoginBtn" onclick="switchTab('login')" style="flex:1;padding:0.6rem;border:none;background:none;color:#6366f1;font-weight:600;cursor:pointer;border-bottom:2px solid #6366f1">Iniciar Sesión</button>
+                    <button type="button" class="tab-btn" id="tabRegisterBtn" onclick="switchTab('register')" style="flex:1;padding:0.6rem;border:none;background:none;color:#94a3b8;font-weight:600;cursor:pointer;border-bottom:2px solid transparent">Registrarse</button>
+                    <button type="button" class="tab-btn" id="tabRecoverBtn" onclick="switchTab('recover')" style="flex:1;padding:0.6rem;border:none;background:none;color:#94a3b8;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;font-size:0.8rem">🔑 Recuperar</button>
+                </div>
+
+                <!-- LOGIN FORM -->
+                <div id="loginSection">
+                    <h3 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin-bottom:0.3rem">Iniciar Sesión</h3>
+                    <p class="login-hint">Bienvenido de vuelta</p>
+                    <form id="loginForm" onsubmit="handleLogin(event)" autocomplete="off">
+                        <div class="field">
+                            <label>Usuario o Email</label>
+                            <input type="text" id="username" value="admin" placeholder="admin o tu email" required>
+                        </div>
+                        <div class="field">
+                            <label>Contraseña</label>
+                            <input type="password" id="password" value="admin123" placeholder="Ingresa tu contraseña" required>
+                        </div>
+                        <div id="loginError" class="alert-error" style="display:none"></div>
+                        <button type="submit" class="btn-login">Ingresar al Sistema</button>
+                    </form>
+                </div>
+
+                <!-- REGISTER FORM -->
+                <div id="registerSection" style="display:none">
+                    <h3 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin-bottom:0.3rem">Crear Cuenta</h3>
+                    <p class="login-hint">Regístrate para empezar a reservar</p>
+                    <form id="registerForm" onsubmit="handleRegister(event)" autocomplete="off">
+                        <div class="f2">
+                            <div class="field">
+                                <label>Nombre</label>
+                                <input type="text" id="regNombre" placeholder="Tu nombre" required>
+                            </div>
+                            <div class="field">
+                                <label>Apellido</label>
+                                <input type="text" id="regApellido" placeholder="Tu apellido" required>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label>Email</label>
+                            <input type="email" id="regEmail" placeholder="tu@email.com" required>
+                        </div>
+                        <div class="f2">
+                            <div class="field">
+                                <label>DNI</label>
+                                <input type="text" id="regDNI" placeholder="12345678" required>
+                            </div>
+                            <div class="field">
+                                <label>Teléfono</label>
+                                <input type="tel" id="regTelefono" placeholder="987654321" required>
+                            </div>
+                        </div>
+                        <div id="registerError" class="alert-error" style="display:none"></div>
+                        <div id="registerSuccess" style="background:#d4edda;border:1px solid #c3e6cb;color:#155724;border-radius:8px;padding:0.7rem 1rem;font-size:0.85rem;margin-bottom:1rem;display:none"></div>
+                        <button type="submit" class="btn-login" id="btnRegister">Crear Cuenta y Recibir Contraseña</button>
+                        <p style="text-align:center;margin-top:0.8rem;font-size:0.82rem;color:#64748b">
+                            ¿Ya tienes cuenta? <button type="button" onclick="switchTab('recover')" style="background:none;border:none;color:#6366f1;font-weight:600;cursor:pointer;font-size:0.82rem">Recuperar contraseña</button>
+                        </p>
+                    </form>
+                </div>
+
+                <!-- RECOVER PASSWORD FORM -->
+                <div id="recoverSection" style="display:none">
+                    <h3 style="font-size:1.4rem;font-weight:700;color:#1e293b;margin-bottom:0.3rem">Recuperar Contraseña</h3>
+                    <p class="login-hint">Ingresa tu email y te enviamos una nueva contraseña</p>
+                    <form id="recoverForm" onsubmit="handleRecoverPassword(event)" autocomplete="off">
+                        <div class="field">
+                            <label>Email registrado</label>
+                            <input type="email" id="recoverEmail" placeholder="tu@email.com" required>
+                        </div>
+                        <div id="recoverError" class="alert-error" style="display:none"></div>
+                        <div id="recoverSuccess" style="background:#d4edda;border:1px solid #c3e6cb;color:#155724;border-radius:8px;padding:0.7rem 1rem;font-size:0.85rem;margin-bottom:1rem;display:none"></div>
+                        <button type="submit" class="btn-login" id="btnRecover">Enviar Nueva Contraseña</button>
+                        <p style="text-align:center;margin-top:0.8rem;font-size:0.82rem;color:#64748b">
+                            <button type="button" onclick="switchTab('login')" style="background:none;border:none;color:#6366f1;font-weight:600;cursor:pointer;font-size:0.82rem">← Volver al login</button>
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================== MAIN APP ======================== -->
+<div id="mainApp" style="display:none">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-top">
+            <div class="sidebar-brand">
+                <span class="logo-icon sm">SW</span>
+                <span>SpaceWork</span>
+            </div>
+        </div>
+        <nav class="sidebar-menu">
+            <span class="menu-label">PRINCIPAL</span>
+            <a class="menu-item active" data-sec="reservas" onclick="showSection('reservas',this)">
+                <span class="mi">📋</span> Reservas
+                <span class="badge" id="badgeReservas"></span>
+            </a>
+            <a class="menu-item" data-sec="pagos" onclick="showSection('pagos',this)">
+                <span class="mi">💳</span> Pagos
+                <span class="badge warn" id="badgePagos"></span>
+            </a>
+            <a class="menu-item" data-sec="notificaciones" onclick="showSection('notificaciones',this)">
+                <span class="mi">🔔</span> Notificaciones
+                <span class="badge" id="badgeNotificaciones"></span>
+            </a>
+            <span class="menu-label">GESTIÓN</span>
+            <a class="menu-item" data-sec="espacios" onclick="showSection('espacios',this)">
+                <span class="mi">🏢</span> Espacios
+            </a>
+            <a class="menu-item" data-sec="clientes" onclick="showSection('clientes',this)">
+                <span class="mi">👥</span> Clientes
+            </a>
+            <a class="menu-item" data-sec="descuentos" onclick="showSection('descuentos',this)">
+                <span class="mi">🏷️</span> Descuentos
+            </a>
+            <a class="menu-item" data-sec="horarios" onclick="showSection('horarios',this)">
+                <span class="mi">⏰</span> Horarios
+            </a>
+            <a class="menu-item" data-sec="evaluaciones" onclick="showSection('evaluaciones',this)">
+                <span class="mi">⭐</span> Evaluaciones
+            </a>
+            <span class="menu-label">ANALYTICS</span>
+            <a class="menu-item" data-sec="dashboard" onclick="showSection('dashboard',this)">
+                <span class="mi">📊</span> Dashboard
+            </a>
+        </nav>
+        <div class="sidebar-bottom">
+            <div class="user-pill">
+                <div class="avatar" id="userAvatar">A</div>
+                <div>
+                    <div class="uname" id="userName">Admin</div>
+                    <div class="urole" id="userRole">Administrador</div>
+                </div>
+            </div>
+            <button class="btn-exit" onclick="logout()" title="Salir">⏻</button>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <div class="app-main">
+        <header class="app-header">
+            <div>
+                <h1 class="header-title" id="pageTitle">Reservas</h1>
+                <p class="header-sub" id="pageSubtitle">Gestión completa de reservas</p>
+            </div>
+            <button class="btn-primary" id="btnAdd" onclick="openAddModal()">+ Nueva</button>
+        </header>
+
+        <!-- ====== RESERVAS (SECCIÓN PRINCIPAL) ====== -->
+        <section id="secReservas" class="sec active">
+
+            <!-- ── VISTA ADMIN ── -->
+            <div id="statsAdmin" class="stats-row">
+                <div class="stat-card blue"><div class="stat-icon">📋</div><div><p>Total</p><h3 id="kpiTotalReservas">-</h3></div></div>
+                <div class="stat-card green"><div class="stat-icon">✅</div><div><p>Confirmadas</p><h3 id="kpiConfirmadas">-</h3></div></div>
+                <div class="stat-card yellow"><div class="stat-icon">⏳</div><div><p>Pendientes</p><h3 id="kpiPendientes">-</h3></div></div>
+                <div class="stat-card purple"><div class="stat-icon">🏆</div><div><p>Completadas</p><h3 id="kpiCompletadas">-</h3></div></div>
+            </div>
+            <div id="adminReservasPanel" class="panel" style="display:none">
+                <div class="panel-head">
+                    <h4>Lista de Reservas</h4>
+                    <div class="panel-tools">
+                        <input class="inp-search" id="searchReservas" type="text" placeholder="🔍 Buscar..." oninput="filterTable('tbodyReservas','searchReservas')">
+                        <select class="inp-select" id="filterEstadoReserva" onchange="filterReservasByEstado()">
+                            <option value="">Todos los estados</option>
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="CONFIRMADA">Confirmada</option>
+                            <option value="COMPLETADA">Completada</option>
+                            <option value="CANCELADA">Cancelada</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>#</th><th>Cliente</th><th>Espacio</th><th>Inicio</th><th>Fin</th><th>Monto</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody id="tbodyReservas"><tr><td colspan="8" class="tbl-empty">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ── VISTA CLIENTE ── -->
+            <div id="clienteZone" style="display:none">
+
+                <!-- 1. BANNER -->
+                <div id="bannerCliente" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:14px;padding:1.2rem 1.6rem;color:white">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+                        <div>
+                            <h3 style="font-size:1.15rem;font-weight:700;margin-bottom:.2rem">👋 Hola, <span id="bannerNombre">Cliente</span></h3>
+                            <p style="opacity:.8;font-size:.88rem">Busca un espacio y crea tu reserva fácilmente</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. FILTROS -->
+                <div style="background:white;border-radius:14px;padding:1.1rem 1.4rem;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.9rem">
+                        <span style="font-size:1rem">🔍</span>
+                        <h4 style="font-size:.95rem;font-weight:700;color:#1e293b">Filtrar espacios</h4>
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.8rem">
+                        <div>
+                            <label style="font-size:.78rem;font-weight:600;color:#64748b;display:block;margin-bottom:.3rem">Nombre del espacio</label>
+                            <input id="filtNombre" class="inp-search" type="text" placeholder="Ej: Sala A, Coworking..."
+                                style="width:100%;min-width:0" oninput="filtrarEspaciosCliente()">
+                        </div>
+                        <div>
+                            <label style="font-size:.78rem;font-weight:600;color:#64748b;display:block;margin-bottom:.3rem">Capacidad mínima (personas)</label>
+                            <input id="filtCapacidad" class="inp-search" type="number" min="1" placeholder="Ej: 4"
+                                style="width:100%;min-width:0" oninput="filtrarEspaciosCliente()">
+                        </div>
+                        <div>
+                            <label style="font-size:.78rem;font-weight:600;color:#64748b;display:block;margin-bottom:.3rem">Fecha deseada</label>
+                            <input id="filtFecha" type="date" class="inp-search"
+                                style="width:100%;min-width:0" oninput="filtrarEspaciosCliente()">
+                        </div>
+                    </div>
+                    <button onclick="limpiarFiltrosCliente()" style="margin-top:.7rem;background:none;border:none;font-size:.8rem;color:#6366f1;cursor:pointer;font-weight:600">✕ Limpiar filtros</button>
+                </div>
+
+                <!-- 3. GRID DE ESPACIOS -->
+                <div>
+                    <h4 style="font-size:.95rem;font-weight:700;color:#1e293b;margin-bottom:.75rem">🏢 Espacios disponibles</h4>
+                    <div id="gridEspaciosCliente" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1rem">
+                        <p class="tbl-empty" style="grid-column:1/-1;padding:2rem">Cargando espacios...</p>
+                    </div>
+                </div>
+
+                <!-- 4. MIS RESERVAS -->
+                <div class="panel">
+                    <div class="panel-head">
+                        <h4>📅 Mis Reservas</h4>
+                    </div>
+                    <div class="tbl-wrap">
+                        <table class="tbl">
+                            <thead><tr><th>#</th><th>Espacio</th><th>Inicio</th><th>Fin</th><th>Monto</th><th>Estado</th><th>Acciones</th></tr></thead>
+                            <tbody id="tbodyMisReservas"><tr><td colspan="7" class="tbl-empty">Cargando...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ====== PAGOS ====== -->
+        <section id="secPagos" class="sec">
+            <div class="stats-row">
+                <div class="stat-card green"><div class="stat-icon">💰</div><div><p>Ingresos</p><h3 id="kpiIngresos">-</h3></div></div>
+                <div class="stat-card yellow"><div class="stat-icon">⏳</div><div><p>Pendientes</p><h3 id="kpiPagosPendientes">-</h3></div></div>
+                <div class="stat-card blue"><div class="stat-icon">✅</div><div><p>Completados</p><h3 id="kpiPagosCompletados">-</h3></div></div>
+            </div>
+            <div class="panel">
+                <div class="panel-head">
+                    <h4>Pagos</h4>
+                    <div class="panel-tools">
+                        <select class="inp-select" id="filterEstadoPago" onchange="filterPagos()">
+                            <option value="">Todos</option>
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="COMPLETADO">Completado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>#</th><th>Cliente</th><th>Reserva</th><th>Monto</th><th>Descuento</th><th>Método</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody id="tbodyPagos"><tr><td colspan="8" class="tbl-empty">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== ESPACIOS ====== -->
+        <section id="secEspacios" class="sec">
+            <div class="cards-grid" id="gridEspacios"><p class="tbl-empty" style="padding:2rem">Cargando espacios...</p></div>
+        </section>
+
+        <!-- ====== CLIENTES ====== -->
+        <section id="secClientes" class="sec">
+            <div class="panel">
+                <div class="panel-head">
+                    <h4>Clientes</h4>
+                    <div class="panel-tools">
+                        <input class="inp-search" id="searchClientes" type="text" placeholder="🔍 Buscar..." oninput="filterTable('tbodyClientes','searchClientes')">
+                    </div>
+                </div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>#</th><th>Nombre</th><th>DNI</th><th>Email</th><th>Teléfono</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody id="tbodyClientes"><tr><td colspan="7" class="tbl-empty">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== NOTIFICACIONES ====== -->
+        <section id="secNotificaciones" class="sec">
+            <div class="panel">
+                <div class="panel-head">
+                    <h4>Notificaciones</h4>
+                    <div class="panel-tools">
+                        <button class="btn-sec" onclick="marcarTodosLeidosNotificaciones()" style="font-size:0.8rem;padding:0.4rem 0.8rem">Marcar todos como leídos</button>
+                    </div>
+                </div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>Tipo</th><th>Asunto</th><th>Mensaje</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody id="tbodyNotificaciones"><tr><td colspan="6" class="tbl-empty">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== HORARIOS ====== -->
+        <section id="secHorarios" class="sec">
+            <div class="panel">
+                <div class="panel-head"><h4>Horarios de Espacios</h4></div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>Espacio</th><th>Lunes</th><th>Martes</th><th>Miércoles</th><th>Jueves</th><th>Viernes</th><th>Sábado</th><th>Domingo</th><th>Acciones</th></tr></thead>
+                        <tbody id="tbodyHorarios"><tr><td colspan="9" class="tbl-empty">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== EVALUACIONES ====== -->
+        <section id="secEvaluaciones" class="sec">
+            <div class="panel">
+                <div class="panel-head"><h4>Evaluaciones de Clientes</h4></div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>Reserva</th><th>Cliente</th><th>Espacio</th><th>Calificación</th><th>Comentarios</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody id="tbodyEvaluaciones"><tr><td colspan="8" class="tbl-empty">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== DESCUENTOS ====== -->
+        <section id="secDescuentos" class="sec">
+            <div class="panel">
+                <div class="panel-head"><h4>Descuentos y Promociones</h4></div>
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead><tr><th>#</th><th>Código</th><th>Descripción</th><th>%</th><th>Usos</th><th>Vigencia</th><th>Estado</th><th>Acciones</th></tr></thead>
+                        <tbody id="tbodyDescuentos"><tr><td colspan="8" class="tbl-empty">Cargando...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ====== DASHBOARD ====== -->
+        <section id="secDashboard" class="sec">
+            <div class="stats-row">
+                <div class="stat-card blue"><div class="stat-icon">🏢</div><div><p>Espacios</p><h3 id="kpiEspacios">-</h3></div></div>
+                <div class="stat-card purple"><div class="stat-icon">👥</div><div><p>Clientes</p><h3 id="kpiClientes">-</h3></div></div>
+                <div class="stat-card green"><div class="stat-icon">📋</div><div><p>Reservas</p><h3 id="kpiReservasDash">-</h3></div></div>
+                <div class="stat-card pink"><div class="stat-icon">💰</div><div><p>Ingresos</p><h3 id="kpiIngresosTotal">S/. -</h3></div></div>
+            </div>
+        </section>
+
+    </div><!-- /app-main -->
+</div><!-- /mainApp -->
+
+
+<!-- ======== MODALES ======== -->
+<!-- Modal detalle reserva -->
+<div id="modalDetalle" class="overlay" style="display:none" onclick="overlayClose(event,'modalDetalle')">
+    <div class="modal">
+        <div class="modal-hd"><h3>Detalle de Reserva</h3><button onclick="closeModal('modalDetalle')">✕</button></div>
+        <div class="modal-bd" id="detalleContent" style="gap:.8rem">
+            <p style="text-align:center;color:#94a3b8">Cargando...</p>
+        </div>
+        <div class="modal-ft">
+            <button class="btn-sec" onclick="closeModal('modalDetalle')">Cerrar</button>
+            <button id="btnCancelarDetalle" class="btn-primary" style="background:linear-gradient(135deg,#ef4444,#dc2626);display:none" onclick="cancelarDesdeDetalle()">Cancelar Reserva</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalReserva" class="overlay" style="display:none" onclick="overlayClose(event,'modalReserva')">
+    <div class="modal">
+        <div class="modal-hd"><h3>Nueva Reserva</h3><button onclick="closeModal('modalReserva')">✕</button></div>
+        <form id="formReserva" onsubmit="saveReserva(event)">
+            <div class="modal-bd">
+                <div class="f2">
+                    <div class="field" id="rowClienteSelect"><label>Cliente</label><select id="rCliente"><option value="">Seleccionar...</option></select></div>
+                    <div class="field"><label>Espacio</label><select id="rEspacio" required><option value="">Seleccionar...</option></select></div>
+                </div>
+                <div class="f2">
+                    <div class="field"><label>Fecha inicio</label><input type="datetime-local" id="rFechaInicio" required></div>
+                    <div class="field"><label>Fecha fin</label><input type="datetime-local" id="rFechaFin" required></div>
+                </div>
+
+            </div>
+            <div class="modal-ft">
+                <button type="button" class="btn-sec" onclick="closeModal('modalReserva')">Cancelar</button>
+                <button type="submit" class="btn-primary">Crear Reserva</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Descuento -->
+<div id="modalDescuento" class="overlay" style="display:none" onclick="overlayClose(event,'modalDescuento')">
+    <div class="modal">
+        <div class="modal-hd"><h3 id="modalDescuentoTitulo">Nuevo Descuento</h3><button onclick="closeModal('modalDescuento')">✕</button></div>
+        <form id="formDescuento" onsubmit="saveDescuento(event)">
+            <input type="hidden" id="dDescuentoId">
+            <div class="modal-bd">
+                <div class="f2">
+                    <div class="field"><label>Código</label><input type="text" id="dCodigo" required placeholder="PROMO2026" style="text-transform:uppercase"></div>
+                    <div class="field"><label>Porcentaje (%)</label><input type="number" id="dPorcentaje" required min="1" max="100" step="0.01" placeholder="10"></div>
+                </div>
+                <div class="field"><label>Descripción</label><input type="text" id="dDescripcion" required placeholder="Descuento de temporada"></div>
+                <div class="f2">
+                    <div class="field"><label>Fecha inicio</label><input type="date" id="dFechaInicio" required></div>
+                    <div class="field"><label>Fecha fin</label><input type="date" id="dFechaFin" required></div>
+                </div>
+                <div class="f2">
+                    <div class="field"><label>Usos máximos</label><input type="number" id="dUsosMaximos" required min="1" placeholder="100"></div>
+                    <div class="field"><label>Monto mínimo (S/.)</label><input type="number" id="dMontoMinimo" min="0" step="0.01" placeholder="0.00"></div>
+                </div>
+                <div id="fieldEstadoDescuento" style="display:none">
+                    <div class="field"><label>Estado</label>
+                        <select id="dEstado"><option value="ACTIVO">ACTIVO</option><option value="INACTIVO">INACTIVO</option></select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-ft">
+                <button type="button" class="btn-sec" onclick="closeModal('modalDescuento')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modalCliente" class="overlay" style="display:none" onclick="overlayClose(event,'modalCliente')">
+    <div class="modal">
+        <div class="modal-hd"><h3 id="modalClienteTitulo">Nuevo Cliente</h3><button onclick="closeModal('modalCliente')">✕</button></div>
+        <form id="formCliente" onsubmit="saveCliente(event)">
+            <input type="hidden" id="cClienteId">
+            <div class="modal-bd">
+                <div class="f2">
+                    <div class="field"><label>Nombre</label><input type="text" id="cNombre" required placeholder="Nombre"></div>
+                    <div class="field"><label>Apellido</label><input type="text" id="cApellido" required placeholder="Apellido"></div>
+                </div>
+                <div class="f2">
+                    <div class="field"><label>DNI</label><input type="text" id="cDNI" required placeholder="12345678" maxlength="8"></div>
+                    <div class="field"><label>Teléfono</label><input type="text" id="cTelefono" placeholder="999000000"></div>
+                </div>
+                <div class="field"><label>Email</label><input type="email" id="cEmail" placeholder="correo@ejemplo.com"></div>
+            </div>
+            <div class="modal-ft">
+                <button type="button" class="btn-sec" onclick="closeModal('modalCliente')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modalEspacio" class="overlay" style="display:none" onclick="overlayClose(event,'modalEspacio')">
+    <div class="modal">
+        <div class="modal-hd"><h3 id="modalEspacioTitulo">Nuevo Espacio</h3><button onclick="closeModal('modalEspacio')">✕</button></div>
+        <form id="formEspacio" onsubmit="saveEspacio(event)">
+            <input type="hidden" id="eEspacioId">
+            <div class="modal-bd">
+                <div class="f2">
+                    <div class="field"><label>Nombre</label><input type="text" id="eNombre" required placeholder="Sala Premium A"></div>
+                    <div class="field"><label>Tipo</label>
+                        <select id="eTipo" required>
+                            <option value="">Seleccionar tipo...</option>
+                            <option value="OFICINA">OFICINA</option>
+                            <option value="COWORKING">COWORKING</option>
+                            <option value="AUDITORIO">AUDITORIO</option>
+                            <option value="SALA_REUNION">SALA_REUNION</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="f2">
+                    <div class="field"><label>Capacidad</label><input type="number" id="eCapacidad" required min="1" placeholder="10"></div>
+                    <div class="field"><label>Precio/hora (S/.)</label><input type="number" id="ePrecio" required min="0" step="0.01" placeholder="150.00"></div>
+                </div>
+                <div class="field"><label>Ubicación</label><input type="text" id="eUbicacion" required placeholder="Ej: Piso 5"></div>
+                <div class="field" id="fieldEstadoEspacio" style="display:none">
+                    <label>Estado</label>
+                    <select id="eEstado">
+                        <option value="ACTIVO">ACTIVO</option>
+                        <option value="INACTIVO">INACTIVO</option>
+                    </select>
+                </div>
+
+            </div>
+            <div class="modal-ft">
+                <button type="button" class="btn-sec" onclick="closeModal('modalEspacio')">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modalPago" class="overlay" style="display:none" onclick="overlayClose(event,'modalPago')">
+    <div class="modal">
+        <div class="modal-hd"><h3>Procesar Pago</h3><button onclick="closeModal('modalPago')">✕</button></div>
+        <form id="formPago" onsubmit="procesarPago(event)">
+            <div class="modal-bd">
+                <input type="hidden" id="pagoId">
+                <div id="pagoInfo" class="pago-resumen"></div>
+                <div class="field">
+                    <label>Método de Pago</label>
+                    <div class="metodos">
+                        <label class="metodo"><input type="radio" name="metodoPago" value="EFECTIVO" onchange="actualizarFormaPago()" aria-label="Pagar en efectivo"><span>💵 Efectivo</span></label>
+                        <label class="metodo"><input type="radio" name="metodoPago" value="TARJETA" onchange="actualizarFormaPago()" aria-label="Pagar con tarjeta"><span>💳 Tarjeta</span></label>
+                        <label class="metodo"><input type="radio" name="metodoPago" value="TRANSFERENCIA" onchange="actualizarFormaPago()" aria-label="Pagar por transferencia"><span>🏦 Transferencia</span></label>
+                    </div>
+                </div>
+                <!-- Campos de tarjeta (solo visible si se selecciona TARJETA) -->
+                <div id="datosTarjeta" class="card-payment-form" style="display:none">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; color: white;">
+                        <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 0.5rem; letter-spacing: 0.1em;">NÚMERO DE TARJETA</div>
+                        <input type="text" id="numeroTarjeta" placeholder="1234 5678 9012 3456" maxlength="16" style="width: 100%; padding: 0.8rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; letter-spacing: 0.2em; font-family: 'Courier New', monospace; background: rgba(255,255,255,0.95); color: #1e293b;">
+                    </div>
+                    <div class="f2">
+                        <div class="field">
+                            <label style="font-size: 0.75rem; color: #64748b;">Vencimiento</label>
+                            <input type="text" id="expiracion" placeholder="12/26" maxlength="5" style="padding: 0.8rem; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; font-weight: 600; font-family: 'Courier New', monospace;">
+                        </div>
+                        <div class="field">
+                            <label style="font-size: 0.75rem; color: #64748b;">CVV</label>
+                            <input type="text" id="cvv" placeholder="123" maxlength="4" style="padding: 0.8rem; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; font-weight: 600; font-family: 'Courier New', monospace;">
+                        </div>
+                    </div>
+                    <div style="background: #f0f9ff; border: 1.5px solid #0ea5e9; border-radius: 8px; padding: 0.8rem; margin-top: 1rem; font-size: 0.8rem; color: #0369a1;">
+                        💡 <strong>Prueba:</strong> Ingresa cualquier tarjeta de 16 dígitos. Usa <code>4000000000000002</code> para simular rechazo.
+                    </div>
+                </div>
+                <div class="field">
+                    <label>Código de Descuento (opcional)</label>
+                    <div class="desc-row">
+                        <input type="text" id="codigoDescuento" placeholder="PROMO10">
+                        <button type="button" class="btn-sec" onclick="validarDescuento()">Aplicar</button>
+                    </div>
+                    <div id="descuentoInfo" style="display:none" class="desc-info"></div>
+                </div>
+            </div>
+            <div class="modal-ft">
+                <button type="button" class="btn-sec" onclick="closeModal('modalPago')">Cancelar</button>
+                <button type="submit" class="btn-success">✓ Confirmar Pago</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="modalEvaluacion" class="overlay" style="display:none" onclick="overlayClose(event,'modalEvaluacion')">
+    <div class="modal" style="max-width:640px">
+        <div class="modal-hd">
+            <h3>Detalle de Evaluación</h3>
+            <button onclick="closeModal('modalEvaluacion')">✕</button>
+        </div>
+        <div class="modal-bd">
+            <div class="eval-detail-grid">
+                <div class="eval-field"><span class="eval-label">Reserva</span><div id="evReserva" class="eval-value">-</div></div>
+                <div class="eval-field"><span class="eval-label">Estado</span><div id="evEstado" class="eval-value">-</div></div>
+                <div class="eval-field"><span class="eval-label">Cliente</span><div id="evCliente" class="eval-value">-</div></div>
+                <div class="eval-field"><span class="eval-label">Espacio</span><div id="evEspacio" class="eval-value">-</div></div>
+                <div class="eval-field" style="grid-column:1 / -1"><span class="eval-label">Fecha</span><div id="evFecha" class="eval-value">-</div></div>
+            </div>
+
+            <div class="eval-rating">
+                <div id="evRatingStars" class="eval-stars">☆☆☆☆☆</div>
+                <div id="evRatingText" class="eval-rate-text">0/5</div>
+            </div>
+
+            <div class="eval-comment">
+                <span class="eval-label">Comentario del cliente</span>
+                <p id="evComentario">Sin comentario registrado</p>
+            </div>
+        </div>
+        <div class="modal-ft">
+            <button type="button" class="btn-sec" onclick="closeModal('modalEvaluacion')">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

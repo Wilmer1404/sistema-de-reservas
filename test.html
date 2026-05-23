@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>TEST SISTEMA</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .section { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #6366f1; }
+        .log { font-family: monospace; font-size: 12px; background: #f0f0f0; padding: 10px; margin: 5px 0; white-space: pre-wrap; max-height: 300px; overflow-y: auto; border: 1px solid #ccc; }
+        button { background: #6366f1; color: white; padding: 10px 20px; border: none; cursor: pointer; border-radius: 4px; margin: 5px; }
+        button:hover { background: #4f46e5; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+<h1>TEST SISTEMA SPACEWORK</h1>
+
+<div class="section">
+    <h2>1. LOGIN</h2>
+    <button onclick="testLogin()">TEST Login como ADMIN</button>
+    <div id="loginLog" class="log"></div>
+</div>
+
+<div class="section">
+    <h2>2. TRAER RESERVAS</h2>
+    <button onclick="testReservas()">TEST GET /api/reservas</button>
+    <div id="reservasLog" class="log"></div>
+</div>
+
+<div class="section">
+    <h2>3. DETALLE RESERVA</h2>
+    <button onclick="testDetalle()">TEST GET /api/reservas/:id</button>
+    <div id="detalleLog" class="log"></div>
+</div>
+
+<div class="section">
+    <h2>FULL TEST</h2>
+    <button onclick="fullTest()">EJECUTAR TODO</button>
+    <div id="fullLog" class="log"></div>
+</div>
+
+<script>
+let token = null;
+let reservas = null;
+
+function log(id, msg) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.innerHTML += msg + "\n";
+        el.scrollTop = el.scrollHeight;
+    }
+}
+
+async function testLogin() {
+    log("loginLog", ">>> Iniciando login...");
+    try {
+        const res = await fetch("http://localhost:8080/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ usuario: "admin", password: "admin" })
+        });
+        const data = await res.json();
+        log("loginLog", `Status: ${res.status}`);
+        log("loginLog", `Response: ${JSON.stringify(data, null, 2)}`);
+        if (data.token) {
+            token = data.token;
+            log("loginLog", `✓ TOKEN OBTENIDO: ${token.substring(0, 30)}...`);
+        } else {
+            log("loginLog", "✗ NO HAY TOKEN EN RESPUESTA");
+        }
+    } catch (e) {
+        log("loginLog", `✗ ERROR: ${e.message}`);
+    }
+}
+
+async function testReservas() {
+    if (!token) { log("reservasLog", "✗ Sin token. Haz login primero."); return; }
+    
+    log("reservasLog", ">>> Obteniendo reservas...");
+    try {
+        const res = await fetch("http://localhost:8080/api/reservas", {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        log("reservasLog", `Status: ${res.status}`);
+        log("reservasLog", `Count: ${Array.isArray(data) ? data.length : 0}`);
+        log("reservasLog", `Data: ${JSON.stringify(data, null, 2).substring(0, 500)}`);
+        reservas = data;
+    } catch (e) {
+        log("reservasLog", `✗ ERROR: ${e.message}`);
+    }
+}
+
+async function testDetalle() {
+    if (!reservas || reservas.length === 0) { 
+        log("detalleLog", "✗ Sin reservas. Carga reservas primero."); 
+        return; 
+    }
+    
+    const id = reservas[0].idReserva;
+    log("detalleLog", `>>> Obteniendo detalle de reserva #${id}...`);
+    try {
+        const res = await fetch(`http://localhost:8080/api/reservas/${id}`, {
+            method: "GET",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        log("detalleLog", `Status: ${res.status}`);
+        log("detalleLog", `Data: ${JSON.stringify(data, null, 2).substring(0, 500)}`);
+    } catch (e) {
+        log("detalleLog", `✗ ERROR: ${e.message}`);
+    }
+}
+
+async function fullTest() {
+    log("fullLog", "=== FULL TEST INICIADO ===");
+    await testLogin();
+    log("fullLog", "\n--- Paso 2: Reservas ---");
+    await testReservas();
+    log("fullLog", "\n--- Paso 3: Detalle ---");
+    await testDetalle();
+    log("fullLog", "\n=== FIN FULL TEST ===");
+}
+</script>
+</body>
+</html>

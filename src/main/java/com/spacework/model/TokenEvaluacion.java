@@ -32,6 +32,16 @@ public class TokenEvaluacion {
         this.fechaExpiracion = fechaExpiracion;
         this.utilizado = utilizado;
     }
+    
+    // Constructor simplificado para creación
+    public TokenEvaluacion(int idPago, String token, String emailCliente, Date fechaExpiracion) {
+        this.idPago = idPago;
+        this.token = token;
+        this.emailCliente = emailCliente;
+        this.fechaCreacion = new Date();
+        this.fechaExpiracion = fechaExpiracion;
+        this.utilizado = 0;
+    }
 
     // Getters y Setters
     public int getIdToken() {

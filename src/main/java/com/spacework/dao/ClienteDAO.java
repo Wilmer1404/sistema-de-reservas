@@ -39,8 +39,8 @@ public class ClienteDAO {
     }
 
     public void insertar(Cliente c) throws SQLException {
-        String sql = "INSERT INTO CLIENTES (id_cliente, nombre, apellido, dni, email, telefono, estado) "
-                   + "VALUES (SEQ_CLIENTES.NEXTVAL, ?, ?, ?, ?, ?, 'ACTIVO')";
+        String sql = "INSERT INTO CLIENTES (id_cliente, nombre, apellido, dni, email, telefono, estado, password) "
+                   + "VALUES (SEQ_CLIENTES.NEXTVAL, ?, ?, ?, ?, ?, 'ACTIVO', ?)";
         Connection conn = null;
         try {
             conn = Conexion.getConexion();
@@ -50,6 +50,7 @@ public class ClienteDAO {
             ps.setString(3, c.getDni());
             ps.setString(4, c.getEmail());
             ps.setString(5, c.getTelefono());
+            ps.setString(6, c.getPassword());
             ps.executeUpdate();
             conn.commit();
         } finally {
@@ -98,6 +99,23 @@ public class ClienteDAO {
         c.setEmail(rs.getString("email"));
         c.setTelefono(rs.getString("telefono"));
         c.setEstado(rs.getString("estado"));
+        c.setPassword(rs.getString("password"));
         return c;
+    }
+
+    // Buscar cliente por email (para login)
+    public Cliente buscarPorEmail(String email) throws SQLException {
+        String sql = "SELECT * FROM CLIENTES WHERE email = ? AND estado = 'ACTIVO'";
+        Connection conn = null;
+        try {
+            conn = Conexion.getConexion();
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setString(1, email);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapearCliente(rs);
+            return null;
+        } finally {
+            Conexion.cerrar(conn);
+        }
     }
 }

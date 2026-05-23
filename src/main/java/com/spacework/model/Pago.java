@@ -17,6 +17,9 @@ public class Pago {
     private Date fechaCreacion;
     private int idDescuento;           // 0 = sin descuento
     private double descuentoAplicado;  // monto descontado en S/.
+    private double igv;                // Impuesto 18%
+    private double montoFinal;         // Monto total con IGV
+    private String referencia;         // Referencia de transacción
 
     // Constructor vacío
     public Pago() {}
@@ -94,6 +97,12 @@ public class Pago {
     public void setIdDescuento(int idDescuento) { this.idDescuento = idDescuento; }
     public double getDescuentoAplicado() { return descuentoAplicado; }
     public void setDescuentoAplicado(double descuentoAplicado) { this.descuentoAplicado = descuentoAplicado; }
+    public double getIgv() { return igv; }
+    public void setIgv(double igv) { this.igv = igv; }
+    public double getMontoFinal() { return montoFinal; }
+    public void setMontoFinal(double montoFinal) { this.montoFinal = montoFinal; }
+    public String getReferencia() { return referencia; }
+    public void setReferencia(String referencia) { this.referencia = referencia; }
     public String toString() {
         return "Pago{" +
                 "idPago=" + idPago +

@@ -116,6 +116,35 @@ public class EvaluacionFormularioHandler implements HttpHandler {
             int idCliente = (reserva != null && reserva.getCliente() != null)
                     ? reserva.getCliente().getIdCliente() : 0;
 
+            // Fallback defensivo: obtener id_cliente directo de RESERVAS si no vino mapeado
+            if (idCliente <= 0) {
+                java.sql.Connection conn = null;
+                try {
+                    conn = com.spacework.util.Conexion.getConexion();
+                    java.sql.PreparedStatement ps = conn.prepareStatement(
+                            "SELECT id_cliente FROM RESERVAS WHERE id_reserva = ?");
+                    ps.setInt(1, idReserva);
+                    java.sql.ResultSet rs = ps.executeQuery();
+                    if (rs.next()) {
+                        idCliente = rs.getInt("id_cliente");
+                    }
+                    rs.close();
+                    ps.close();
+                    com.spacework.util.Conexion.cerrar(conn);
+                } catch (Exception ignored) {
+                    if (conn != null) {
+                        try { com.spacework.util.Conexion.cerrar(conn); } catch (Exception ex) { }
+                    }
+                }
+            }
+
+            if (idCliente <= 0) {
+                html = paginaError("Error de datos",
+                        "No se pudo identificar al cliente de la reserva. Solicita un nuevo enlace de evaluación.");
+                enviarRespuesta(exchange, 400, html);
+                return;
+            }
+
             // Usar comentario enviado, o valor por defecto si está vacío
             if (comentario == null || comentario.trim().isEmpty()) {
                 comentario = "Evaluación recibida por email (sin comentario adicional)";
@@ -145,8 +174,11 @@ public class EvaluacionFormularioHandler implements HttpHandler {
             enviarRespuesta(exchange, 200, html);
 
         } catch (Exception e) {
-            System.err.println("[EvaluacionFormulario] Error: " + e.getMessage());
-            html = paginaError("Error interno", "Ocurrió un error inesperado: " + e.getMessage());
+            String detalle = (e.getMessage() == null || e.getMessage().trim().isEmpty())
+                    ? "sin detalle técnico"
+                    : e.getMessage();
+            System.err.println("[EvaluacionFormulario] Error: " + detalle);
+            html = paginaError("Error interno", "Ocurrió un error inesperado: " + detalle);
             enviarRespuesta(exchange, 500, html);
         }
     }

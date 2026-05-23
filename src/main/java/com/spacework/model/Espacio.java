@@ -9,11 +9,12 @@ public class Espacio {
     private String ubicacion;
     private double precioPorHora;
     private String estado;         // ACTIVO / INACTIVO
+    private String urlImagen;      // Base64 o DataURL
 
     public Espacio() {}
 
     public Espacio(int idEspacio, String nombre, String tipo, int capacidad,
-                   String ubicacion, double precioPorHora, String estado) {
+                   String ubicacion, double precioPorHora, String estado, String urlImagen) {
         this.idEspacio    = idEspacio;
         this.nombre       = nombre;
         this.tipo         = tipo;
@@ -21,6 +22,7 @@ public class Espacio {
         this.ubicacion    = ubicacion;
         this.precioPorHora = precioPorHora;
         this.estado       = estado;
+        this.urlImagen    = urlImagen;
     }
 
     public int    getIdEspacio()     { return idEspacio; }
@@ -30,6 +32,7 @@ public class Espacio {
     public String getUbicacion()     { return ubicacion; }
     public double getPrecioPorHora() { return precioPorHora; }
     public String getEstado()        { return estado; }
+    public String getUrlImagen()      { return urlImagen; }
 
     public void setIdEspacio(int id)           { this.idEspacio = id; }
     public void setNombre(String nombre)        { this.nombre = nombre; }
@@ -38,6 +41,7 @@ public class Espacio {
     public void setUbicacion(String ubicacion)  { this.ubicacion = ubicacion; }
     public void setPrecioPorHora(double precio) { this.precioPorHora = precio; }
     public void setEstado(String estado)        { this.estado = estado; }
+    public void setUrlImagen(String urlImagen)    { this.urlImagen = urlImagen; }
 
     @Override
     public String toString() {

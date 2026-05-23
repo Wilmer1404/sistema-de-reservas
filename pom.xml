@@ -6,6 +6,13 @@
 
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.14</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+
     <groupId>com.spacework</groupId>
     <artifactId>SistemaReservas</artifactId>
     <version>1.0-SNAPSHOT</version>
@@ -65,6 +72,43 @@
             <systemPath>${project.basedir}/lib/activation.jar</systemPath>
         </dependency>
 
+        <!-- Spring Boot Starters -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        
+        <!-- Spring Mail -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- JWT (JJWT) -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt</artifactId>
+            <version>0.9.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -83,6 +127,32 @@
             </plugins>
         </pluginManagement>
         <plugins>
+            <!-- Plugin para copiar el driver Oracle al directorio de salida -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-ojdbc8-to-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- Crear estructura de directorios correcta para Spring Boot -->
+                                <mkdir dir="${project.build.directory}/jar-content/BOOT-INF/lib"/>
+                                <!-- Copiar ojdbc8 a la estructura -->
+                                <copy file="${project.basedir}/lib/ojdbc8.jar" todir="${project.build.directory}/jar-content/BOOT-INF/lib"/>
+                                <!-- Agregar al JAR ejecutable -->
+                                <jar update="true" destfile="${project.build.directory}/SistemaReservas-${project.version}.jar" basedir="${project.build.directory}/jar-content"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            
             <!-- Plugin para empaquetar con dependencias incluidas -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -97,6 +167,16 @@
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
+                </configuration>
+            </plugin>
+            
+            <!-- Spring Boot Maven Plugin -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.spacework.SpaceWorkApplication</mainClass>
+                    <includeSystemScope>true</includeSystemScope>
                 </configuration>
             </plugin>
         </plugins>

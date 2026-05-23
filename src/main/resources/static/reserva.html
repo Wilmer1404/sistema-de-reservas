@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reserva - SpaceWork</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="container">
+            <h1 class="logo">SpaceWork</h1>
+            <nav>
+                <a href="dashboard.html" class="link">Volver</a>
+                <span id="usuarioNombre"></span>
+                <button class="btn btn-secondary" onclick="logout()">Cerrar sesión</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <div id="espacioInfo" class="card">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <h2>Crear Reserva</h2>
+                    <form id="reservaForm">
+                        <div class="form-group">
+                            <label for="fechaInicio">Fecha y hora de inicio</label>
+                            <input type="datetime-local" id="fechaInicio" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="fechaFin">Fecha y hora de fin</label>
+                            <input type="datetime-local" id="fechaFin" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="dniCliente">DNI del Cliente</label>
+                            <input type="text" id="dniCliente" required>
+                        </div>
+                        
+                        <div id="montoTotal" class="info-box">
+                            <strong>Total: $0.00</strong>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-full">Crear Reserva</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/auth.js"></script>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const idEspacio = params.get('espacioId');
+
+        async function cargarEspacio() {
+            try {
+                const response = await fetch(`/api/espacios/${idEspacio}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const espacio = data.data;
+                    document.getElementById('espacioInfo').innerHTML = `
+                        <h2>${espacio.nombre}</h2>
+                        <p><strong>Tipo:</strong> ${espacio.tipo}</p>
+                        <p><strong>Capacidad:</strong> ${espacio.capacidad} personas</p>
+                        <p><strong>Ubicación:</strong> ${espacio.ubicacion}</p>
+                        <p><strong>Precio:</strong> $${espacio.precioPorhora.toFixed(2)}/hora</p>
+                        <p><strong>Descripción:</strong> ${espacio.descripcion}</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        document.getElementById('reservaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fechaInicio = new Date(document.getElementById('fechaInicio').value);
+            const fechaFin = new Date(document.getElementById('fechaFin').value);
+            const dni = document.getElementById('dniCliente').value;
+
+            const horas = (fechaFin - fechaInicio) / (1000 * 60 * 60);
+            const monto = await obtenerPrecioEspacio() * horas;
+
+            try {
+                const response = await fetch('/api/clientes/dni/' + dni);
+                const clienteData = await response.json();
+                const cliente = clienteData.data;
+
+                const reserva = {
+                    idCliente: cliente.idCliente,
+                    idEspacio: parseInt(idEspacio),
+                    fechaInicio: fechaInicio.toISOString(),
+                    fechaFin: fechaFin.toISOString(),
+                    montoTotal: monto
+                };
+
+                const createResponse = await fetch('/api/reservas', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    },
+                    body: JSON.stringify(reserva)
+                });
+
+                const createdData = await createResponse.json();
+                if (createdData.success) {
+                    alert('Reserva creada exitosamente');
+                    window.location.href = `pago.html?pagoId=${createdData.data.idPago}`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al crear la reserva');
+            }
+        });
+
+        async function obtenerPrecioEspacio() {
+            const response = await fetch(`/api/espacios/${idEspacio}`);
+            const data = await response.json();
+            return data.data.precioPorhora;
+        }
+
+        cargarEspacio();
+    </script>
+</body>
+</html>

@@ -42,8 +42,8 @@ public class EspacioDAO {
     }
 
     public void insertar(Espacio e) throws SQLException {
-        String sql = "INSERT INTO ESPACIOS (id_espacio, nombre, tipo, capacidad, ubicacion, precio_por_hora, estado) "
-                   + "VALUES (SEQ_ESPACIOS.NEXTVAL, ?, ?, ?, ?, ?, 'ACTIVO')";
+        String sql = "INSERT INTO ESPACIOS (id_espacio, nombre, tipo, capacidad, ubicacion, precio_por_hora, estado, urlImagen) "
+               + "VALUES (SEQ_ESPACIOS.NEXTVAL, ?, ?, ?, ?, ?, 'ACTIVO', ?)";
         Connection conn = null;
         try {
             conn = Conexion.getConexion();
@@ -53,6 +53,7 @@ public class EspacioDAO {
             ps.setInt(3, e.getCapacidad());
             ps.setString(4, e.getUbicacion());
             ps.setDouble(5, e.getPrecioPorHora());
+            ps.setString(6, e.getUrlImagen());
             ps.executeUpdate();
             conn.commit();
         } finally {
@@ -61,7 +62,7 @@ public class EspacioDAO {
     }
 
     public void actualizar(Espacio e) throws SQLException {
-        String sql = "UPDATE ESPACIOS SET nombre=?, tipo=?, capacidad=?, ubicacion=?, precio_por_hora=? "
+        String sql = "UPDATE ESPACIOS SET nombre=?, tipo=?, capacidad=?, ubicacion=?, precio_por_hora=?, urlImagen=? "
                    + "WHERE id_espacio=?";
         Connection conn = null;
         try {
@@ -72,7 +73,8 @@ public class EspacioDAO {
             ps.setInt(3, e.getCapacidad());
             ps.setString(4, e.getUbicacion());
             ps.setDouble(5, e.getPrecioPorHora());
-            ps.setInt(6, e.getIdEspacio());
+            ps.setString(6, e.getUrlImagen());
+            ps.setInt(7, e.getIdEspacio());
             ps.executeUpdate();
             conn.commit();
         } finally {
@@ -103,6 +105,7 @@ public class EspacioDAO {
         e.setUbicacion(rs.getString("ubicacion"));
         e.setPrecioPorHora(rs.getDouble("precio_por_hora"));
         e.setEstado(rs.getString("estado"));
+        e.setUrlImagen(rs.getString("urlImagen"));
         return e;
     }
 }

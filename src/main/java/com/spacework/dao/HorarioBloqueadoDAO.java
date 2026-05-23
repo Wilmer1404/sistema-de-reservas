@@ -78,4 +78,21 @@ public class HorarioBloqueadoDAO {
             pstmt.executeUpdate();
         }
     }
+
+    public boolean verificarDisponibilidadHorarios(int idEspacio, java.sql.Timestamp inicio, java.sql.Timestamp fin) throws SQLException {
+        String sql = "SELECT COUNT(*) as cnt FROM HORARIOS_BLOQUEADOS " +
+                     "WHERE id_espacio = ? AND NOT (fecha_fin <= ? OR fecha_inicio >= ?)";
+        try (Connection conn = Conexion.getConexion();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, idEspacio);
+            pstmt.setTimestamp(2, inicio);
+            pstmt.setTimestamp(3, fin);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("cnt") == 0;
+                }
+            }
+        }
+        return true;
+    }
 }

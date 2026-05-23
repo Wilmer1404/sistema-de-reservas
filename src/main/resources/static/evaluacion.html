@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluación - SpaceWork</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --brand: #0f766e;
+            --brand-strong: #115e59;
+            --line: #dbe6ef;
+            --ok-bg: #ecfdf5;
+            --ok: #065f46;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", system-ui, sans-serif;
+            background:
+                radial-gradient(circle at 15% 10%, #d1fae5 0%, transparent 35%),
+                radial-gradient(circle at 85% 90%, #bfdbfe 0%, transparent 30%),
+                var(--bg);
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 20px;
+            color: var(--text);
+        }
+        .card {
+            width: 100%;
+            max-width: 650px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            box-shadow: 0 22px 50px rgba(15, 23, 42, .14);
+            overflow: hidden;
+        }
+        .card-head {
+            background: linear-gradient(120deg, #0f766e, #0e7490);
+            color: #fff;
+            padding: 22px;
+        }
+        .card-head h1 {
+            margin: 0 0 6px;
+            font-size: 1.4rem;
+        }
+        .card-head p {
+            margin: 0;
+            opacity: .9;
+            font-size: .95rem;
+        }
+        .card-body { padding: 20px 22px 24px; }
+        .label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .rating {
+            display: flex;
+            flex-direction: row-reverse;
+            justify-content: flex-end;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        .rating input { display: none; }
+        .rating label {
+            font-size: 38px;
+            color: #cbd5e1;
+            cursor: pointer;
+            transition: transform .12s ease, color .12s ease;
+        }
+        .rating label:hover,
+        .rating label:hover ~ label,
+        .rating input:checked ~ label {
+            color: #f59e0b;
+            transform: translateY(-2px);
+        }
+        .hint {
+            margin: 0 0 16px;
+            color: var(--muted);
+            font-size: .88rem;
+        }
+        textarea {
+            width: 100%;
+            min-height: 130px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 12px;
+            resize: vertical;
+            font: inherit;
+            color: #1f2937;
+            outline: none;
+        }
+        textarea:focus {
+            border-color: #0ea5a3;
+            box-shadow: 0 0 0 3px rgba(20, 184, 166, .15);
+        }
+        .actions {
+            margin-top: 16px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            border: 0;
+            border-radius: 10px;
+            padding: 11px 18px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: var(--brand);
+            color: #fff;
+        }
+        .btn-primary:hover { background: var(--brand-strong); }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        #mensaje {
+            margin-top: 14px;
+            border-radius: 10px;
+            padding: 12px;
+            background: var(--ok-bg);
+            color: var(--ok);
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <div class="card-head">
+            <h1>Gracias por usar SpaceWork</h1>
+            <p>Tu opinión nos ayuda a mejorar el servicio.</p>
+        </div>
+        <div class="card-body">
+            <form id="evaluacionForm">
+                <label class="label">Calificación</label>
+                <div class="rating">
+                    <input type="radio" name="calificacion" value="5" id="star5"><label for="star5">★</label>
+                    <input type="radio" name="calificacion" value="4" id="star4"><label for="star4">★</label>
+                    <input type="radio" name="calificacion" value="3" id="star3"><label for="star3">★</label>
+                    <input type="radio" name="calificacion" value="2" id="star2"><label for="star2">★</label>
+                    <input type="radio" name="calificacion" value="1" id="star1"><label for="star1">★</label>
+                </div>
+                <p class="hint">Selecciona de 1 a 5 estrellas.</p>
+
+                <label class="label" for="comentario">Comentario (opcional)</label>
+                <textarea id="comentario" placeholder="Cuéntanos qué tal fue tu experiencia..."></textarea>
+
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary">Enviar evaluación</button>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('evaluacionForm').reset()">Limpiar</button>
+                </div>
+            </form>
+            <div id="mensaje" style="display:none"></div>
+        </div>
+    </main>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        document.getElementById('evaluacionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const selected = document.querySelector('input[name="calificacion"]:checked');
+            if (!selected) {
+                alert('Selecciona una calificación antes de enviar.');
+                return;
+            }
+
+            const calificacion = parseInt(selected.value, 10);
+            const comentario = document.getElementById('comentario').value;
+
+            try {
+                if (!token) {
+                    alert('Token inválido o faltante. Revisa el enlace del correo.');
+                    return;
+                }
+
+                const destino = '/evaluaciones/formulario?token=' + encodeURIComponent(token)
+                    + '&calificacion=' + encodeURIComponent(calificacion)
+                    + '&comentario=' + encodeURIComponent(comentario || '');
+
+                window.location.href = destino;
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al enviar la evaluación: ' + (error.message || 'desconocido'));
+            }
+        });
+    </script>
+</body>
+</html>
