@@ -12,7 +12,7 @@ import com.spacework.model.Pago;
 
 @Service
 public class EmailService {
-    @Autowired
+    @Autowired(required = false)
     private JavaMailSender mailSender;
 
     @Value("${spring.mail.from:noreply@spacework.com}")

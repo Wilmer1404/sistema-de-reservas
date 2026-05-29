@@ -1,31 +1,43 @@
 package com.spacework.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
     private boolean success;
     private T data;
     private String message;
+    private String error;
 
-    public ApiResponse(boolean success, T data, String message) {
+    public ApiResponse() {}
+
+    private ApiResponse(boolean success) {
         this.success = success;
-        this.data = data;
-        this.message = message;
-    }
-
-    public ApiResponse(boolean success, String message) {
-        this.success = success;
-        this.message = message;
-    }
-
-    public static <T> ApiResponse<T> ok(T data, String message) {
-        return new ApiResponse<>(true, data, message);
     }
 
     public static <T> ApiResponse<T> ok(T data) {
-        return new ApiResponse<>(true, data, null);
+        ApiResponse<T> r = new ApiResponse<>(true);
+        r.data = data;
+        return r;
     }
 
-    public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(false, null, message);
+    public static <T> ApiResponse<T> ok(T data, String message) {
+        ApiResponse<T> r = new ApiResponse<>(true);
+        r.data = data;
+        r.message = message;
+        return r;
+    }
+
+    public static <T> ApiResponse<T> ok(String message) {
+        ApiResponse<T> r = new ApiResponse<>(true);
+        r.message = message;
+        return r;
+    }
+
+    public static <T> ApiResponse<T> error(String errorMsg) {
+        ApiResponse<T> r = new ApiResponse<>(false);
+        r.error = errorMsg;
+        return r;
     }
 
     public boolean isSuccess() { return success; }
@@ -36,4 +48,7 @@ public class ApiResponse<T> {
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+    public String getError() { return error; }
+    public void setError(String error) { this.error = error; }
 }

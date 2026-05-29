@@ -12,37 +12,59 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/espacios")
 public class EspacioRestController {
+
     @Autowired
     private EspacioService espacioService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Espacio>>> obtenerTodos() {
-        List<Espacio> espacios = espacioService.obtenerTodos();
-        return ResponseEntity.ok(ApiResponse.ok(espacios, "Espacios obtenidos"));
+    public ResponseEntity<ApiResponse<List<Espacio>>> listar() {
+        try {
+            return ResponseEntity.ok(ApiResponse.ok(espacioService.listar()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Espacio>> obtenerPorId(@PathVariable Long id) {
-        Espacio espacio = espacioService.obtenerPorId(id);
-        return ResponseEntity.ok(ApiResponse.ok(espacio, "Espacio obtenido"));
-    }
-
-    @GetMapping("/tipo/{tipo}")
-    public ResponseEntity<ApiResponse<List<Espacio>>> obtenerPorTipo(@PathVariable String tipo) {
-        List<Espacio> espacios = espacioService.obtenerPorTipo(tipo);
-        return ResponseEntity.ok(ApiResponse.ok(espacios, "Espacios del tipo encontrados"));
+    public ResponseEntity<ApiResponse<Espacio>> buscarPorId(@PathVariable int id) {
+        try {
+            Espacio e = espacioService.buscarPorId(id);
+            if (e == null) return ResponseEntity.status(404).body(ApiResponse.error("No encontrado"));
+            return ResponseEntity.ok(ApiResponse.ok(e));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Void>> crear(@RequestBody Espacio espacio) {
-        espacioService.crear(espacio);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Espacio creado"));
+    public ResponseEntity<ApiResponse<Void>> insertar(@RequestBody Espacio espacio) {
+        try {
+            espacioService.insertar(espacio);
+            return ResponseEntity.ok(ApiResponse.<Void>ok(null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> actualizar(@PathVariable Long id, @RequestBody Espacio espacio) {
-        espacio.setIdEspacio(id.intValue());
-        espacioService.actualizar(espacio);
-        return ResponseEntity.ok(ApiResponse.ok(null, "Espacio actualizado"));
+    public ResponseEntity<ApiResponse<Void>> actualizar(@PathVariable int id, @RequestBody Espacio datos) {
+        try {
+            espacioService.actualizar(id, datos);
+            return ResponseEntity.ok(ApiResponse.<Void>ok(null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> desactivar(@PathVariable int id) {
+        try {
+            espacioService.desactivar(id);
+            return ResponseEntity.ok(ApiResponse.<Void>ok(null));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.error(e.getMessage()));
+        }
     }
 }

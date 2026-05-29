@@ -81,13 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser = JSON.parse(savedUser);
             window.currentUser = currentUser;
             showPage('dashboard');
-            // Controlar visibilidad de módulos según rol
-            controlVisibilidadModulosPorRol();
-            // Mostrar nombre del usuario
+            if (typeof applyRolePermissions === 'function') applyRolePermissions(currentUser);
+            else controlVisibilidadModulosPorRol();
             if (currentUser && currentUser.nombre) {
                 document.getElementById('user-display').textContent = currentUser.nombre;
             }
-            showSection('dashboard');
+            const seccionInicial = (currentUser.rol === 'CLIENTE') ? 'reservas' : 'dashboard';
+            showSection(seccionInicial);
         } catch (e) {
             localStorage.clear();
         }
@@ -105,27 +105,40 @@ async function handleLogin(event) {
     errorDiv.classList.add('d-none');
 
     try {
-        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        // Intentar login como admin primero
+        let response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
         });
+        let data = await response.json();
 
-        const data = await response.json();
+        // Si falla, intentar como cliente (email o DNI)
+        if (!data.success) {
+            const resCliente = await fetch(`${API_BASE_URL}/clientes/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            data = await resCliente.json();
+        }
 
         if (data.success) {
-            currentUser = data.user;
-            localStorage.setItem('user', JSON.stringify(data.user));
-            if (data.token) {
+            currentUser = data.data ? data.data.user : data.user;
+            window.currentUser = currentUser;
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            if (data.data && data.data.token) {
+                localStorage.setItem('token', data.data.token);
+            } else if (data.token) {
                 localStorage.setItem('token', data.token);
-                console.log('✓ Token guardado en localStorage:', data.token.substring(0, 20) + '...');
-            } else {
-                console.warn('⚠ Backend no devolvió token:', data);
             }
             showPage('dashboard');
-            showSection('dashboard');
+            if (typeof applyRolePermissions === 'function') applyRolePermissions(currentUser);
+            else controlVisibilidadModulosPorRol();
+            const seccion = (currentUser && currentUser.rol === 'CLIENTE') ? 'reservas' : 'dashboard';
+            showSection(seccion);
         } else {
-            errorDiv.textContent = data.error || 'Credenciales inválidas';
+            errorDiv.textContent = data.error || data.message || 'Credenciales inválidas';
             errorDiv.classList.remove('d-none');
         }
     } catch (error) {
@@ -142,36 +155,26 @@ function logout() {
 }
 
 // ============================================================
-// CONTROL DE VISIBILIDAD POR ROL
+// CONTROL DE VISIBILIDAD POR ROL (fallback si index.html no tiene applyRolePermissions)
 // ============================================================
 function controlVisibilidadModulosPorRol() {
     if (!currentUser || !currentUser.rol) return;
-    
+    if (typeof applyRolePermissions === 'function') {
+        applyRolePermissions(currentUser);
+        return;
+    }
     const esCliente = currentUser.rol.toUpperCase() === 'CLIENTE';
-    const esAdmin = currentUser.rol.toUpperCase().includes('ADMIN');
-    
+    const adminOnlyNavIds = ['nav-dashboard','nav-clientes','nav-pagos','nav-descuentos',
+                             'nav-horarios','nav-evaluaciones','nav-notificaciones','nav-reportes'];
+    adminOnlyNavIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = esCliente ? 'none' : '';
+    });
     if (esCliente) {
-        // Cliente: Solo ve Reservas y Espacios (para ver disponibilidad)
-        // Ocultar módulos de admin
-        document.getElementById('nav-dashboard').classList.add('d-none');
-        document.getElementById('nav-espacios').classList.remove('d-none');
-        document.getElementById('nav-clientes').classList.add('d-none');
-        document.getElementById('nav-pagos').classList.add('d-none');
-        document.getElementById('nav-descuentos').classList.add('d-none');
-        document.getElementById('nav-horarios').classList.add('d-none');
-        document.getElementById('nav-evaluaciones').classList.add('d-none');
-        document.getElementById('nav-notificaciones').classList.add('d-none');
-        document.getElementById('nav-reportes').classList.add('d-none');
-        
-        // Ocultar secciones que no son para cliente
-        document.getElementById('dashboard').classList.add('d-none');
-        document.getElementById('clientes').classList.add('d-none');
-        document.getElementById('pagos').classList.add('d-none');
-        document.getElementById('descuentos').classList.add('d-none');
-        document.getElementById('horarios').classList.add('d-none');
-        document.getElementById('evaluaciones').classList.add('d-none');
-        document.getElementById('notificaciones').classList.add('d-none');
-        document.getElementById('reportes').classList.add('d-none');
+        const adminView = document.querySelector('.reservas-admin-only');
+        const clienteView = document.querySelector('.reservas-cliente-only');
+        if (adminView) adminView.classList.add('d-none');
+        if (clienteView) clienteView.classList.remove('d-none');
     }
 }
 
@@ -1039,31 +1042,69 @@ function renderHorariosBloqueados(horarios) {
     container.innerHTML = '';
 
     if (!horarios || horarios.length === 0) {
-        container.innerHTML = '<div class="col-12"><div class="alert alert-info">No hay horarios bloqueados registrados</div></div>';
+        container.innerHTML = `<div class="col-12">
+            <div style="text-align:center;padding:48px;color:#64748b">
+                <div style="font-size:48px;margin-bottom:12px">🔓</div>
+                <p style="font-size:16px;font-weight:600">No hay horarios bloqueados</p>
+                <p style="font-size:14px">Usa el botón "Bloquear Horario" para restringir disponibilidad de un espacio.</p>
+            </div></div>`;
         return;
     }
 
     horarios.forEach(h => {
-        const inicio = h.fechaInicio ? new Date(h.fechaInicio).toLocaleString('es-PE') : '-';
-        const fin = h.fechaFin ? new Date(h.fechaFin).toLocaleString('es-PE') : '-';
-        
+        const fmtFecha = (str) => {
+            if (!str) return '-';
+            const d = new Date(str);
+            return d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' })
+                 + ' · ' + d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' });
+        };
+        const inicio = fmtFecha(h.fechaInicio);
+        const fin    = fmtFecha(h.fechaFin);
+
         const col = document.createElement('div');
         col.className = 'col-md-6 col-lg-4';
         col.innerHTML = `
-            <div class="card h-100 shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title">Bloqueo #${h.idHorarioBloqueado}</h5>
-
-                    <p class="card-text mb-1"><strong>Espacio:</strong> ${h.nombreEspacio || h.idEspacio}</p>
-                    <p class="card-text mb-1"><strong>Desde:</strong> ${inicio}</p>
-                    <p class="card-text mb-1"><strong>Hasta:</strong> ${fin}</p>
-                    <p class="card-text mb-2"><strong>Razón:</strong> ${h.razon || 'Sin especificar'}</p>
+            <div style="border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);background:#fff;height:100%;display:flex;flex-direction:column">
+                <div style="background:linear-gradient(135deg,#dc2626,#ef4444);padding:14px 18px;display:flex;align-items:center;gap:10px">
+                    <div style="font-size:22px">🚫</div>
+                    <div>
+                        <div style="color:#fff;font-weight:700;font-size:15px">${h.nombreEspacio || 'Espacio #' + h.idEspacio}</div>
+                        <div style="color:rgba(255,255,255,0.8);font-size:12px">Bloqueo #${h.idHorarioBloqueado}</div>
+                    </div>
                 </div>
-                <div class="card-footer bg-white border-top">
-                    <button class="btn btn-sm btn-danger" onclick="desbloquearHorario(${h.idHorarioBloqueado})">🔓 Desbloquear</button>
+                <div style="padding:16px 18px;flex:1">
+                    <div style="display:flex;flex-direction:column;gap:10px">
+                        <div style="display:flex;gap:8px;align-items:flex-start">
+                            <span style="color:#dc2626;font-size:14px;margin-top:1px">📅</span>
+                            <div>
+                                <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Inicio</div>
+                                <div style="font-size:13px;color:#1e293b;font-weight:500">${inicio}</div>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:flex-start">
+                            <span style="color:#dc2626;font-size:14px;margin-top:1px">🏁</span>
+                            <div>
+                                <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Fin</div>
+                                <div style="font-size:13px;color:#1e293b;font-weight:500">${fin}</div>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:flex-start">
+                            <span style="color:#dc2626;font-size:14px;margin-top:1px">📝</span>
+                            <div>
+                                <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Razón</div>
+                                <div style="font-size:13px;color:#1e293b">${h.razon || 'Sin especificar'}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        `;
+                <div style="padding:12px 18px;border-top:1px solid #f1f5f9">
+                    <button onclick="desbloquearHorario(${h.idHorarioBloqueado})"
+                        style="width:100%;padding:8px;border:none;border-radius:8px;background:#fee2e2;color:#dc2626;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s"
+                        onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
+                        🔓 Desbloquear
+                    </button>
+                </div>
+            </div>`;
         container.appendChild(col);
     });
 }
@@ -1409,126 +1450,216 @@ async function procesarPago(idPago, monto, nombreCliente, emailCliente) {
 
 function seleccionarMetodoPago(idPago, monto, nombreCliente, emailCliente) {
     return new Promise((resolve) => {
-        // Eliminar instancia previa del modal para evitar conflictos con Bootstrap
         const viejo = document.getElementById('pagoMetodoModal');
-        if (viejo) {
-            const instancia = bootstrap.Modal.getInstance(viejo);
-            if (instancia) instancia.dispose();
-            viejo.remove();
-        }
+        if (viejo) { const inst = bootstrap.Modal.getInstance(viejo); if (inst) inst.dispose(); viejo.remove(); }
 
         let montoFinal = typeof monto === 'number' ? monto : parseFloat(monto);
         let idDescuentoAplicado = null;
         const activeUser = getActiveUser();
         const esCliente = activeUser && activeUser.rol === 'CLIENTE';
-        const opcionesMetodo = esCliente
-            ? '<option value="TARJETA">💳 Tarjeta de Crédito/Débito</option><option value="YAPE">📱 Yape / Plin</option>'
-            : '<option value="EFECTIVO">💵 Efectivo</option><option value="TARJETA">💳 Tarjeta de Crédito/Débito</option><option value="TRANSFERENCIA">🏦 Transferencia Bancaria</option><option value="YAPE">📱 Yape / Plin</option>';
+
+        // ── CAMPOS DE TARJETA ─────────────────────────────────────────
+        const camposTarjeta = `
+        <div id="pm-card-fields" style="margin-top:16px">
+            <div style="margin-bottom:12px">
+                <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:block">Número de tarjeta</label>
+                <div style="position:relative">
+                    <input type="text" id="pm-numero-tarjeta" maxlength="19" placeholder="0000 0000 0000 0000"
+                        style="width:100%;padding:11px 44px 11px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-family:monospace;letter-spacing:2px;outline:none;box-sizing:border-box"
+                        oninput="this.value=this.value.replace(/[^0-9]/g,'').replace(/(.{4})/g,'$1 ').trim().substring(0,19)"
+                        onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+                    <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:20px" id="pm-card-brand">💳</span>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:block">Vencimiento</label>
+                    <input type="text" id="pm-expiracion" maxlength="5" placeholder="MM/AA"
+                        style="width:100%;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:monospace;outline:none;box-sizing:border-box"
+                        oninput="let v=this.value.replace(/[^0-9]/g,'');if(v.length>=2)v=v.substring(0,2)+'/'+v.substring(2);this.value=v"
+                        onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:block">CVV</label>
+                    <input type="password" id="pm-cvv" maxlength="4" placeholder="•••"
+                        style="width:100%;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:monospace;outline:none;box-sizing:border-box"
+                        oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+                        onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+            </div>
+        </div>`;
+
+        // ── SELECTOR MÉTODO (solo admin) ──────────────────────────────
+        const selectorMetodo = esCliente ? '' : `
+        <div style="margin-bottom:14px">
+            <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block">Método de pago</label>
+            <select id="pm-metodo" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;background:#fff"
+                onchange="toggleCamposTarjeta(this.value)">
+                <option value="EFECTIVO">💵 Efectivo</option>
+                <option value="TRANSFERENCIA">🏦 Transferencia Bancaria</option>
+            </select>
+            <div id="pm-card-fields-wrapper" style="display:none">${camposTarjeta}</div>
+        </div>`;
 
         const modalEl = document.createElement('div');
         modalEl.id = 'pagoMetodoModal';
         modalEl.className = 'modal fade';
         modalEl.tabIndex = -1;
         modalEl.innerHTML = `
-            <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                    <div class="modal-header bg-success text-white">
-                        <h5 class="modal-title">💳 Procesar Pago</h5>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3 p-3 bg-light rounded">
-                            <p class="mb-1"><strong>👤 Cliente:</strong> <span id="pm-cliente"></span></p>
-                            <p class="mb-1"><strong>📧 Email:</strong> <span id="pm-email"></span></p>
-                            <p class="mb-0 text-success fw-bold"><strong>💰 Monto:</strong> S/. <span id="pm-monto"></span></p>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">🎁 Código de Descuento <span class="text-muted fw-normal">(opcional)</span></label>
-                            <div class="input-group">
-                                <input type="text" class="form-control text-uppercase" id="pm-codigo-descuento" placeholder="Ej: PROMO25">
-                                <button class="btn btn-outline-success" type="button" id="pm-validar-codigo">Validar</button>
-                            </div>
-                            <div id="pm-descuento-msg" class="mt-1 small"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Método de Pago</label>
-                            <select class="form-select" id="pm-metodo">
-                                ${opcionesMetodo}
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" id="pm-cancelar">Cancelar</button>
-                        <button type="button" class="btn btn-success" id="pm-confirmar">✅ Confirmar Pago</button>
-                    </div>
+        <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+          <div class="modal-content" style="border-radius:16px;overflow:hidden;border:none;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+
+            <!-- HEADER -->
+            <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:20px 24px;display:flex;align-items:center;gap:12px">
+                <div style="background:rgba(255,255,255,0.2);border-radius:10px;padding:8px;font-size:22px">💳</div>
+                <div>
+                    <div style="color:#fff;font-weight:800;font-size:17px">Pasarela de Pagos</div>
+                    <div style="color:rgba(255,255,255,0.75);font-size:12px">Transacción segura</div>
                 </div>
-            </div>`;
+                <button onclick="document.getElementById('pagoMetodoModal').querySelector('[data-bs-dismiss]').click()"
+                    style="margin-left:auto;background:rgba(255,255,255,0.2);border:none;border-radius:8px;padding:6px 10px;color:#fff;cursor:pointer;font-size:16px">✕</button>
+            </div>
+
+            <!-- BODY -->
+            <div style="padding:20px 24px">
+
+                <!-- Monto destacado -->
+                <div style="text-align:center;margin-bottom:18px;padding:14px;background:#f5f3ff;border-radius:12px">
+                    <div style="font-size:11px;color:#7c3aed;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Total a pagar</div>
+                    <div style="font-size:28px;font-weight:800;color:#6366f1">S/. <span id="pm-monto">${montoFinal.toFixed(2)}</span></div>
+                    <div style="font-size:12px;color:#94a3b8;margin-top:2px" id="pm-cliente-label"></div>
+                </div>
+
+                <!-- Descuento (solo admin) -->
+                ${!esCliente ? `
+                <div style="margin-bottom:14px">
+                    <label style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block">🎁 Código de descuento</label>
+                    <div style="display:flex;gap:8px">
+                        <input type="text" id="pm-codigo-descuento" placeholder="Ej: PROMO25"
+                            style="flex:1;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;text-transform:uppercase"
+                            onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#e2e8f0'">
+                        <button id="pm-validar-codigo"
+                            style="padding:9px 14px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Validar</button>
+                    </div>
+                    <div id="pm-descuento-msg" style="margin-top:6px;font-size:12px"></div>
+                </div>` : ''}
+
+                <!-- Selector método (admin) o campos tarjeta directo (cliente) -->
+                ${selectorMetodo}
+                ${esCliente ? camposTarjeta : ''}
+
+                <!-- Logos tarjetas -->
+                <div style="display:flex;gap:6px;justify-content:center;margin-top:16px;opacity:.5;font-size:11px;color:#94a3b8;align-items:center">
+                    <span>VISA</span><span>•</span><span>MASTERCARD</span><span>•</span><span>AMEX</span>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <div style="padding:0 24px 20px">
+                <button id="pm-confirmar"
+                    style="width:100%;padding:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.3px">
+                    Pagar S/. <span id="pm-btn-monto">${montoFinal.toFixed(2)}</span>
+                </button>
+                <button data-bs-dismiss="modal" id="pm-cancelar"
+                    style="width:100%;padding:10px;background:transparent;color:#94a3b8;border:none;font-size:13px;cursor:pointer;margin-top:8px">
+                    Cancelar
+                </button>
+            </div>
+
+          </div>
+        </div>`;
         document.body.appendChild(modalEl);
 
-        const nombreModal = nombreCliente || (activeUser && activeUser.nombre) || 'Cliente';
-        const emailModal = emailCliente || (activeUser && activeUser.email) || 'Sin email';
-        document.getElementById('pm-cliente').textContent = nombreModal;
-        document.getElementById('pm-email').textContent   = emailModal;
-        document.getElementById('pm-monto').textContent   = montoFinal.toFixed(2);
+        const nombreModal = nombreCliente || (activeUser && activeUser.nombre) || '';
+        const emailModal  = emailCliente  || (activeUser && activeUser.email)  || '';
+        document.getElementById('pm-cliente-label').textContent = nombreModal + (emailModal ? ' · ' + emailModal : '');
 
         const modal = new bootstrap.Modal(modalEl);
         modal.show();
 
-        // Validar código de descuento
-        document.getElementById('pm-validar-codigo').onclick = async () => {
-            const codigo = document.getElementById('pm-codigo-descuento').value.trim().toUpperCase();
-            const msgEl = document.getElementById('pm-descuento-msg');
-            if (!codigo) { msgEl.innerHTML = '<span class="text-danger">Ingrese un código</span>'; return; }
-            try {
-                const res = await fetch(`${API_BASE_URL}/descuentos/validar`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ codigo, monto: montoFinal })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    const descuento = (montoFinal * data.porcentaje) / 100;
-                    montoFinal = montoFinal - descuento;
-                    idDescuentoAplicado = data.idDescuento;
-                    document.getElementById('pm-monto').textContent = montoFinal.toFixed(2);
-                    msgEl.innerHTML = `<span class="text-success fw-bold">✅ Descuento aplicado: ${data.porcentaje}% — ${data.descripcion} (−S/. ${descuento.toFixed(2)})</span>`;
-                    document.getElementById('pm-validar-codigo').disabled = true;
-                    document.getElementById('pm-codigo-descuento').disabled = true;
-                } else {
-                    idDescuentoAplicado = null;
-                    msgEl.innerHTML = `<span class="text-danger">❌ ${data.error || 'Código inválido'}</span>`;
-                }
-            } catch (e) {
-                msgEl.innerHTML = '<span class="text-danger">Error de conexión</span>';
-            }
+        // Toggle campos tarjeta para admin
+        window.toggleCamposTarjeta = function(metodo) {
+            const w = document.getElementById('pm-card-fields-wrapper');
+            if (w) w.style.display = metodo === 'TARJETA' ? 'block' : 'none';
         };
+
+        // Detectar marca de tarjeta
+        const numInput = document.getElementById('pm-numero-tarjeta');
+        if (numInput) {
+            numInput.addEventListener('input', function() {
+                const v = this.value.replace(/\s/g,'');
+                const brand = document.getElementById('pm-card-brand');
+                if (!brand) return;
+                if (/^4/.test(v)) brand.textContent = '💳 VISA';
+                else if (/^5[1-5]/.test(v)) brand.textContent = '💳 MC';
+                else if (/^3[47]/.test(v)) brand.textContent = '💳 AMEX';
+                else brand.textContent = '💳';
+            });
+        }
+
+        // Validar descuento (admin)
+        const btnDesc = document.getElementById('pm-validar-codigo');
+        if (btnDesc) {
+            btnDesc.onclick = async () => {
+                const codigo = document.getElementById('pm-codigo-descuento').value.trim().toUpperCase();
+                const msgEl  = document.getElementById('pm-descuento-msg');
+                if (!codigo) { msgEl.innerHTML = '<span style="color:#ef4444">Ingrese un código</span>'; return; }
+                try {
+                    const res  = await fetch(`${API_BASE_URL}/descuentos/validar`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ codigo, monto: montoFinal }) });
+                    const data = await res.json();
+                    if (data.success) {
+                        const desc = (montoFinal * data.porcentaje) / 100;
+                        montoFinal -= desc;
+                        idDescuentoAplicado = data.idDescuento;
+                        document.getElementById('pm-monto').textContent    = montoFinal.toFixed(2);
+                        document.getElementById('pm-btn-monto').textContent = montoFinal.toFixed(2);
+                        msgEl.innerHTML = `<span style="color:#10b981;font-weight:600">✅ ${data.porcentaje}% aplicado — ahorras S/. ${desc.toFixed(2)}</span>`;
+                        btnDesc.disabled = true;
+                        document.getElementById('pm-codigo-descuento').disabled = true;
+                    } else {
+                        msgEl.innerHTML = `<span style="color:#ef4444">❌ ${data.error || 'Código inválido'}</span>`;
+                    }
+                } catch(e) { msgEl.innerHTML = '<span style="color:#ef4444">Error de conexión</span>'; }
+            };
+        }
 
         document.getElementById('pm-cancelar').onclick = () => { modal.hide(); resolve(null); };
 
         document.getElementById('pm-confirmar').onclick = async () => {
-            const metodo = document.getElementById('pm-metodo').value;
+            const metodo = esCliente ? 'TARJETA' : (document.getElementById('pm-metodo') ? document.getElementById('pm-metodo').value : 'TARJETA');
+            const payload = { metodoPago: metodo, montoFinal, idDescuento: idDescuentoAplicado };
+
+            // Si es tarjeta, incluir datos
+            if (metodo === 'TARJETA') {
+                const numEl = document.getElementById('pm-numero-tarjeta');
+                const expEl = document.getElementById('pm-expiracion');
+                const cvvEl = document.getElementById('pm-cvv');
+                const num = numEl ? numEl.value.replace(/\s/g,'') : '';
+                const exp = expEl ? expEl.value : '';
+                const cvv = cvvEl ? cvvEl.value : '';
+                if (!num || num.length < 16) { showAlert('danger', '❌ Número de tarjeta inválido (debe tener 16 dígitos)'); return; }
+                if (!exp || !/^\d{2}\/\d{2}$/.test(exp)) { showAlert('danger', '❌ Fecha de vencimiento inválida (MM/AA)'); return; }
+                if (!cvv || cvv.length < 3)  { showAlert('danger', '❌ CVV inválido'); return; }
+                payload.numeroTarjeta = num;
+                payload.expiracion    = exp;
+                payload.cvv           = cvv;
+            }
+
             modal.hide();
             try {
-                const res = await fetch(`${API_BASE_URL}/pagos/${idPago}/pagar`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ metodoPago: metodo, montoFinal, idDescuento: idDescuentoAplicado })
-                });
+                const res  = await fetch(`${API_BASE_URL}/pagos/${idPago}/pagar`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
                 const data = await res.json();
                 if (data.success) {
-                    showAlert('success', `✅ Pago procesado por ${metodo}. Se envió confirmación a ${emailCliente || 'cliente'}.`);
+                    showAlert('success', `✅ Pago procesado. Se envió confirmación a ${emailModal || 'tu correo'}.`);
                     await cargarPagos();
-                    if (window._allReservas.length > 0) {
+                    if (window._allReservas && window._allReservas.length > 0) {
                         await loadReservas();
-                        if (currentUser && currentUser.rol === 'CLIENTE' && typeof renderClienteHistorial === 'function') {
-                            renderClienteHistorial();
-                        }
+                        if (currentUser && currentUser.rol === 'CLIENTE' && typeof renderClienteHistorial === 'function') renderClienteHistorial();
                     }
                 } else {
-                    showAlert('danger', '❌ Error: ' + (data.error || 'No se pudo procesar el pago'));
+                    showAlert('danger', '❌ ' + (data.error || 'No se pudo procesar el pago'));
                 }
-            } catch (e) {
-                showAlert('danger', '❌ Error de conexión al procesar el pago');
-            }
+            } catch(e) { showAlert('danger', '❌ Error de conexión al procesar el pago'); }
             resolve(metodo);
         };
     });
@@ -1755,12 +1886,12 @@ function _abrirDescuentoModal(d) {
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Fecha Inicio *</label>
                             <input type="date" class="form-control" id="desc-fecha-inicio"
-                                value="${esEdicion ? (d.fechaInicio || today) : today}">
+                                value="${esEdicion ? (d.fechaInicio ? d.fechaInicio.split('T')[0] : today) : today}">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Fecha Fin *</label>
                             <input type="date" class="form-control" id="desc-fecha-fin"
-                                value="${esEdicion ? (d.fechaFin || futuro) : futuro}">
+                                value="${esEdicion ? (d.fechaFin ? d.fechaFin.split('T')[0] : futuro) : futuro}">
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-bold">Usos Máximos *</label>
@@ -2164,41 +2295,67 @@ async function cargarNotificaciones() {
 function renderNotificaciones(notificaciones) {
     const container = document.getElementById('notificaciones-list');
     container.innerHTML = '';
-    
+
     if (!notificaciones || notificaciones.length === 0) {
-        container.innerHTML = '<div class="col-12"><p class="text-muted text-center">No hay notificaciones</p></div>';
+        container.innerHTML = `<div class="col-12">
+            <div style="text-align:center;padding:48px;color:#64748b">
+                <div style="font-size:48px;margin-bottom:12px">🔔</div>
+                <p style="font-size:16px;font-weight:600">Sin notificaciones</p>
+                <p style="font-size:14px">Las notificaciones aparecerán aquí cuando haya actividad.</p>
+            </div></div>`;
         return;
     }
 
+    const tipoConfig = {
+        'EVALUACION': { icono:'⭐', color:'#f59e0b', bg:'#fffbeb', badge:'#f59e0b' },
+        'PAGO':       { icono:'💳', color:'#10b981', bg:'#f0fdf4', badge:'#10b981' },
+        'RESERVA':    { icono:'📅', color:'#3b82f6', bg:'#eff6ff', badge:'#3b82f6' },
+        'RECORDATORIO':{ icono:'⏰', color:'#8b5cf6', bg:'#f5f3ff', badge:'#8b5cf6' },
+    };
+
     notificaciones.forEach(n => {
+        const cfg = tipoConfig[n.tipo] || { icono:'📌', color:'#64748b', bg:'#f8fafc', badge:'#64748b' };
+        const leida = n.leida == 1;
+        const fecha = n.fechaCreacion ? new Date(n.fechaCreacion).toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' }) : '';
+
+        // Limpiar el mensaje: ocultar tokens técnicos
+        let mensajeLimpio = n.mensaje || '';
+        if (n.tipo === 'EVALUACION') {
+            const emailMatch = mensajeLimpio.match(/Email:\s*([\w.@+-]+)/);
+            const clienteMatch = mensajeLimpio.match(/Cliente:\s*([^|]+)/);
+            mensajeLimpio = emailMatch
+                ? '📧 ' + emailMatch[1].trim() + (clienteMatch ? ' — ' + clienteMatch[1].trim() : '')
+                : mensajeLimpio.split('Token:')[0].trim() || mensajeLimpio;
+        }
+
+        const botonAccion = (n.tipo === 'EVALUACION' && !leida)
+            ? `<button id="btn-eval-${n.idNotificacion}"
+                onclick="enviarEvaluacion(${n.idNotificacion}, this)"
+                style="width:100%;padding:9px;border:none;border-radius:8px;background:#f0fdf4;color:#16a34a;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s"
+                onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                📧 Enviar evaluación al cliente
+               </button>`
+            : (n.tipo === 'EVALUACION' && leida)
+            ? `<div style="text-align:center;padding:8px;background:#f0fdf4;border-radius:8px;color:#16a34a;font-size:13px;font-weight:600">✅ Email enviado</div>`
+            : '';
+
         const col = document.createElement('div');
         col.className = 'col-md-6 col-lg-4';
-        
-        let iconoTipo = '📌';
-        if (n.tipo === 'EVALUACION') iconoTipo = '⭐';
-        else if (n.tipo === 'PAGO') iconoTipo = '💳';
-        else if (n.tipo === 'RESERVA') iconoTipo = '📅';
-        else if (n.tipo === 'RECORDATORIO') iconoTipo = '⏰';
-        
-        const botones = (n.tipo === 'EVALUACION' && !n.leida)
-            ? `<button id="btn-eval-${n.idNotificacion}" class="btn btn-sm btn-success" onclick="enviarEvaluacion(${n.idNotificacion}, this)">📧 Enviar Evaluación</button>`
-            : (n.tipo === 'EVALUACION' && n.leida)
-            ? `<span class="badge bg-success fs-6">✅ Ya enviado</span>`
-            : '';
-        
         col.innerHTML = `
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-${n.leida ? 'light' : 'primary text-white'}">
-                    <h6 class="mb-0">${iconoTipo} ${n.tipo}</h6>
+            <div style="border-radius:12px;overflow:hidden;box-shadow:${leida ? 'none' : '0 2px 12px rgba(0,0,0,0.1)'};background:#fff;border:1px solid ${leida ? '#e2e8f0' : cfg.color + '40'};height:100%;display:flex;flex-direction:column;opacity:${leida ? '.75' : '1'}">
+                <div style="padding:14px 18px;background:${leida ? '#f8fafc' : cfg.bg};display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid ${leida ? '#e2e8f0' : cfg.color + '30'}">
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <span style="font-size:20px">${cfg.icono}</span>
+                        <span style="font-size:13px;font-weight:700;color:${cfg.color};text-transform:uppercase;letter-spacing:.5px">${n.tipo}</span>
+                    </div>
+                    <span style="font-size:11px;color:#94a3b8">${fecha}</span>
                 </div>
-                <div class="card-body">
-                    <p class="card-title fw-bold">${n.asunto}</p>
-                    <p class="card-text small">${n.mensaje}</p>
-                    <small class="text-muted">${new Date(n.fechaCreacion).toLocaleDateString('es-PE')}</small>
+                <div style="padding:14px 18px;flex:1">
+                    <div style="font-size:14px;font-weight:600;color:#1e293b;margin-bottom:6px">${n.asunto || ''}</div>
+                    <div style="font-size:13px;color:#64748b;line-height:1.5">${mensajeLimpio}</div>
                 </div>
-                ${botones ? `<div class="card-footer bg-white">${botones}</div>` : ''}
-            </div>
-        `;
+                ${botonAccion ? `<div style="padding:12px 18px;border-top:1px solid #f1f5f9">${botonAccion}</div>` : ''}
+            </div>`;
         container.appendChild(col);
     });
 }
