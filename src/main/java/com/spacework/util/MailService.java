@@ -7,9 +7,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
 
-/**
- * Servicio de envío de correos electrónicos via Gmail SMTP
- */
 public class MailService {
 
     private static Properties mailProps;
@@ -25,16 +22,8 @@ public class MailService {
                 .getResourceAsStream("mail.properties")) {
             if (input != null) {
                 mailProps.load(input);
-            } else {
-                mailProps.put("smtp.user",     "juancmduel@gmail.com");
-                mailProps.put("smtp.password", "pwtt uaxp uifo vhiv");
-                mailProps.put("smtp.from",     "juancmduel@gmail.com");
             }
-        } catch (IOException e) {
-            mailProps.put("smtp.user",     "juancmduel@gmail.com");
-            mailProps.put("smtp.password", "pwtt uaxp uifo vhiv");
-            mailProps.put("smtp.from",     "juancmduel@gmail.com");
-        }
+        } catch (IOException ignored) {}
 
         final String user = mailProps.getProperty("smtp.user");
         final String pass = mailProps.getProperty("smtp.password").replace(" ", "");
