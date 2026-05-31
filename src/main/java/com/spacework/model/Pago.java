@@ -2,10 +2,6 @@ package com.spacework.model;
 
 import java.util.Date;
 
-/**
- * Modelo de Pago
- * Representa un pago asociado a una reserva
- */
 public class Pago {
     
     private int idPago;

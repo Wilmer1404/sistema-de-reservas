@@ -2,11 +2,6 @@ package com.spacework.model;
 
 import java.util.Date;
 
-/**
- * Modelo para Token de Evaluación
- * Representa un token temporal que permite a un cliente evaluar una reserva
- * sin necesidad de autenticarse (acceso vía email)
- */
 public class TokenEvaluacion {
     
     private int idToken;

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Propiedades -->
+    <property name="LOG_FILE_PATH" value="logs"/>
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"/>
+    <property name="LOG_FILE_MAX_SIZE" value="100MB"/>
+    <property name="LOG_FILE_MAX_HISTORY" value="30"/>
+    <property name="LOG_TOTAL_SIZE" value="3GB"/>
+
+    <!-- Appender: Console (salida en terminal) -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Appender: Archivo de logs generales con rotación -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE_PATH}/spacework.log</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <!-- Estrategia de rotación: por tamaño y por día -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Nombre del archivo rotado: spacework.2026-05-29.1.log.gz -->
+            <fileNamePattern>${LOG_FILE_PATH}/spacework.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- Máximo tamaño antes de rotar -->
+            <maxFileSize>${LOG_FILE_MAX_SIZE}</maxFileSize>
+            <!-- Mantener máximo 30 días -->
+            <maxHistory>${LOG_FILE_MAX_HISTORY}</maxHistory>
+            <!-- Tamaño máximo total de logs -->
+            <totalSizeCap>${LOG_TOTAL_SIZE}</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Appender: Archivo de ERRORES solamente -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE_PATH}/spacework.error.log</file>
+        <!-- Solo registrar ERROR y superiores -->
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>ERROR</level>
+        </filter>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE_PATH}/spacework.error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>${LOG_FILE_MAX_SIZE}</maxFileSize>
+            <maxHistory>90</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Appender: Archivo de AUDITORÍA -->
+    <appender name="AUDIT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE_PATH}/spacework.audit.log</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE_PATH}/spacework.audit.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>${LOG_FILE_MAX_SIZE}</maxFileSize>
+            <maxHistory>365</maxHistory> <!-- 1 año -->
+        </rollingPolicy>
+    </appender>
+
+    <!-- Appender: Archivo de SEGURIDAD -->
+    <appender name="SECURITY_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE_PATH}/spacework.security.log</file>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_FILE_PATH}/spacework.security.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>${LOG_FILE_MAX_SIZE}</maxFileSize>
+            <maxHistory>365</maxHistory> <!-- 1 año -->
+        </rollingPolicy>
+    </appender>
+
+    <!-- Loggers específicos por componente -->
+
+    <!-- Logger para controllers (REST API) -->
+    <logger name="com.spacework.controller" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- Logger para services (lógica de negocio) -->
+    <logger name="com.spacework.service" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- Logger para DAOs (acceso a datos) -->
+    <logger name="com.spacework.dao" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- Logger para seguridad/autenticación -->
+    <logger name="com.spacework.config.JwtTokenProvider" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="SECURITY_FILE"/>
+    </logger>
+
+    <!-- Logger para auditoría -->
+    <logger name="com.spacework.util.AuditoriaUtil" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="AUDIT_FILE"/>
+    </logger>
+
+    <!-- Logger de Spring Security (detectar intentos fallidos de login) -->
+    <logger name="org.springframework.security" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="SECURITY_FILE"/>
+    </logger>
+
+    <!-- Logger de Spring Web -->
+    <logger name="org.springframework.web" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- Root logger (por defecto) -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ERROR_FILE"/>
+    </root>
+
+    <!-- Profiles de Spring -->
+    <springProfile name="dev">
+        <!-- En desarrollo: más verbose -->
+        <logger name="com.spacework" level="DEBUG"/>
+    </springProfile>
+
+    <springProfile name="prod">
+        <!-- En producción: menos verbose -->
+        <logger name="com.spacework" level="INFO"/>
+    </springProfile>
+</configuration>

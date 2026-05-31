@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Horarios Bloqueados - SpaceWork</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f6f9; }
+        .page-header {
+            background: linear-gradient(135deg, #1F3864, #2E75B6);
+            color: white;
+            padding: 24px 32px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .page-header h2 { margin: 0; font-size: 1.5rem; }
+        .page-header p  { margin: 4px 0 0; opacity: .85; font-size: .9rem; }
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+            border-left: 4px solid #C8102E;
+            margin-bottom: 20px;
+        }
+        .stat-card .number { font-size: 2rem; font-weight: 700; color: #C8102E; }
+        .stat-card .label  { color: #666; font-size: .85rem; text-transform: uppercase; }
+        .card-panel {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .card-panel h4 {
+            color: #1F3864;
+            border-bottom: 2px solid #C8102E;
+            padding-bottom: 10px;
+            margin-bottom: 18px;
+        }
+        .table th { background: #1F3864; color: white; }
+        .badge-razon {
+            background: #EBF3FB;
+            color: #1F3864;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: .82rem;
+        }
+        .btn-eliminar {
+            background: #C8102E;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: .85rem;
+        }
+        .btn-eliminar:hover { background: #a00824; }
+        .form-label { font-weight: 600; color: #333; }
+        .btn-guardar {
+            background: #1F3864;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .2s;
+        }
+        .btn-guardar:hover { background: #162847; }
+        #toast {
+            position: fixed; bottom: 24px; right: 24px;
+            padding: 14px 20px; border-radius: 10px;
+            color: white; font-weight: 600; z-index: 9999;
+            display: none; box-shadow: 0 4px 12px rgba(0,0,0,.2);
+        }
+        .toast-ok  { background: #059669; }
+        .toast-err { background: #C8102E; }
+        #loading { text-align: center; padding: 40px; color: #666; }
+    </style>
+</head>
+<body>
+
+<header class="navbar" style="background:#1F3864; padding:12px 24px; margin-bottom:0;">
+    <div class="container-fluid d-flex justify-content-between align-items-center">
+        <h1 style="color:white; margin:0; font-size:1.4rem;">
+            <i class="fas fa-building"></i> SpaceWork
+        </h1>
+        <nav style="display:flex; gap:16px;">
+            <a href="index.html" style="color:rgba(255,255,255,.8); text-decoration:none; font-size:.9rem;">
+                <i class="fas fa-home"></i> Inicio
+            </a>
+            <a href="reserva.html" style="color:rgba(255,255,255,.8); text-decoration:none; font-size:.9rem;">
+                <i class="fas fa-calendar"></i> Reservas
+            </a>
+            <a href="descuento.html" style="color:rgba(255,255,255,.8); text-decoration:none; font-size:.9rem;">
+                <i class="fas fa-tag"></i> Descuentos
+            </a>
+            <a href="monitoring.html" style="color:rgba(255,255,255,.8); text-decoration:none; font-size:.9rem;">
+                <i class="fas fa-chart-line"></i> Monitoreo
+            </a>
+        </nav>
+    </div>
+</header>
+
+<main class="container-fluid" style="padding: 28px 32px;">
+
+    <div class="page-header">
+        <div>
+            <h2><i class="fas fa-clock"></i> Horarios Bloqueados</h2>
+            <p>Gestión de periodos en que los espacios no están disponibles para reserva</p>
+        </div>
+        <button class="btn-guardar" onclick="document.getElementById('formSection').scrollIntoView({behavior:'smooth'})">
+            <i class="fas fa-plus"></i> Nuevo Bloqueo
+        </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="row" id="statsRow">
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="number" id="statTotal">–</div>
+                <div class="label">Bloqueos registrados</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card" style="border-color:#2E75B6;">
+                <div class="number" style="color:#2E75B6;" id="statEspacios">–</div>
+                <div class="label">Espacios afectados</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card" style="border-color:#059669;">
+                <div class="number" style="color:#059669;" id="statProximos">–</div>
+                <div class="label">Bloqueos próximos (7 días)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla -->
+    <div class="card-panel">
+        <h4><i class="fas fa-list"></i> Listado de Bloqueos</h4>
+        <div id="loading"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>
+        <div id="tableWrapper" style="display:none; overflow-x:auto;">
+            <table class="table table-hover" id="tablaHorarios">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Espacio</th>
+                        <th>Fecha Inicio</th>
+                        <th>Fecha Fin</th>
+                        <th>Razón</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyHorarios"></tbody>
+            </table>
+        </div>
+        <div id="sinDatos" style="display:none; text-align:center; padding:30px; color:#888;">
+            <i class="fas fa-calendar-check fa-2x"></i><br>No hay horarios bloqueados registrados.
+        </div>
+    </div>
+
+    <!-- Formulario -->
+    <div class="card-panel" id="formSection">
+        <h4><i class="fas fa-plus-circle"></i> Registrar Nuevo Bloqueo</h4>
+        <form id="formHorario" onsubmit="guardarHorario(event)">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Espacio</label>
+                    <select id="idEspacio" class="form-select" required>
+                        <option value="">Cargando espacios...</option>
+                    </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Razón del bloqueo</label>
+                    <input type="text" id="razon" class="form-control" placeholder="Ej: Mantenimiento, Limpieza, Evento privado" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Fecha y hora de inicio</label>
+                    <input type="datetime-local" id="fechaInicio" class="form-control" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Fecha y hora de fin</label>
+                    <input type="datetime-local" id="fechaFin" class="form-control" required>
+                </div>
+            </div>
+            <button type="submit" class="btn-guardar">
+                <i class="fas fa-save"></i> Guardar Bloqueo
+            </button>
+            <button type="button" class="btn btn-secondary ms-2" onclick="document.getElementById('formHorario').reset()">
+                <i class="fas fa-eraser"></i> Limpiar
+            </button>
+        </form>
+    </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+    const token = localStorage.getItem('token');
+    const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+
+    function toast(msg, ok = true) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = ok ? 'toast-ok' : 'toast-err';
+        t.style.display = 'block';
+        setTimeout(() => t.style.display = 'none', 3500);
+    }
+
+    async function cargarEspacios() {
+        try {
+            const res  = await fetch('/api/espacios', { headers });
+            const data = await res.json();
+            const sel  = document.getElementById('idEspacio');
+            sel.innerHTML = '<option value="">Seleccione un espacio</option>';
+            (data.data || []).forEach(e => {
+                sel.innerHTML += `<option value="${e.idEspacio}">${e.nombre} (${e.tipo})</option>`;
+            });
+        } catch (e) {
+            document.getElementById('idEspacio').innerHTML = '<option value="">Error al cargar</option>';
+        }
+    }
+
+    async function cargarHorarios() {
+        try {
+            const res  = await fetch('/api/horarios', { headers });
+            const data = await res.json();
+            const list = data.data || [];
+
+            document.getElementById('loading').style.display = 'none';
+
+            if (list.length === 0) {
+                document.getElementById('sinDatos').style.display = 'block';
+            } else {
+                document.getElementById('tableWrapper').style.display = 'block';
+            }
+
+            // Stats
+            const espaciosUnicos = new Set(list.map(h => h.idEspacio)).size;
+            const ahora = new Date();
+            const en7dias = new Date(ahora.getTime() + 7 * 86400000);
+            const proximos = list.filter(h => {
+                const fi = new Date(h.fechaInicio);
+                return fi >= ahora && fi <= en7dias;
+            }).length;
+
+            document.getElementById('statTotal').textContent    = list.length;
+            document.getElementById('statEspacios').textContent = espaciosUnicos;
+            document.getElementById('statProximos').textContent = proximos;
+
+            // Tabla
+            const tbody = document.getElementById('tbodyHorarios');
+            tbody.innerHTML = list.map(h => `
+                <tr>
+                    <td><strong>#${h.idHorarioBloqueado}</strong></td>
+                    <td><i class="fas fa-door-open" style="color:#2E75B6;"></i> ${h.nombreEspacio}</td>
+                    <td><i class="fas fa-play-circle" style="color:#059669;"></i> ${h.fechaInicio}</td>
+                    <td><i class="fas fa-stop-circle" style="color:#C8102E;"></i> ${h.fechaFin}</td>
+                    <td><span class="badge-razon">${h.razon || '—'}</span></td>
+                    <td>
+                        <button class="btn-eliminar" onclick="eliminar(${h.idHorarioBloqueado})">
+                            <i class="fas fa-trash"></i> Eliminar
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            document.getElementById('loading').innerHTML = '<span style="color:red;">Error al cargar los horarios.</span>';
+        }
+    }
+
+    async function guardarHorario(e) {
+        e.preventDefault();
+        const body = {
+            idEspacio:    parseInt(document.getElementById('idEspacio').value),
+            fechaInicio:  document.getElementById('fechaInicio').value,
+            fechaFin:     document.getElementById('fechaFin').value,
+            razon:        document.getElementById('razon').value.trim()
+        };
+        if (body.fechaFin <= body.fechaInicio) {
+            toast('La fecha de fin debe ser posterior a la de inicio.', false);
+            return;
+        }
+        try {
+            const res = await fetch('/api/horarios', { method: 'POST', headers, body: JSON.stringify(body) });
+            const data = await res.json();
+            if (data.success !== false) {
+                toast('Bloqueo registrado correctamente.');
+                document.getElementById('formHorario').reset();
+                recargar();
+            } else {
+                toast(data.message || 'Error al guardar.', false);
+            }
+        } catch (err) {
+            toast('Error de conexión.', false);
+        }
+    }
+
+    async function eliminar(id) {
+        if (!confirm('¿Eliminar este bloqueo de horario?')) return;
+        try {
+            const res  = await fetch(`/api/horarios/${id}`, { method: 'DELETE', headers });
+            const data = await res.json();
+            if (data.success !== false) {
+                toast('Bloqueo eliminado.');
+                recargar();
+            } else {
+                toast(data.message || 'Error al eliminar.', false);
+            }
+        } catch (err) {
+            toast('Error de conexión.', false);
+        }
+    }
+
+    function recargar() {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('tableWrapper').style.display = 'none';
+        document.getElementById('sinDatos').style.display = 'none';
+        document.getElementById('tbodyHorarios').innerHTML = '';
+        cargarHorarios();
+    }
+
+    cargarEspacios();
+    cargarHorarios();
+</script>
+</body>
+</html>

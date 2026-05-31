@@ -2,10 +2,6 @@ package com.spacework.model;
 
 import java.util.Date;
 
-/**
- * Modelo de Notificación
- * Representa notificaciones enviadas a usuarios
- */
 public class Notificacion {
     
     private int idNotificacion;

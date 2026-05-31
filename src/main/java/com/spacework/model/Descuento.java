@@ -2,10 +2,6 @@ package com.spacework.model;
 
 import java.util.Date;
 
-/**
- * Modelo de Descuento
- * Representa códigos promocionales y descuentos disponibles
- */
 public class Descuento {
     
     private int idDescuento;

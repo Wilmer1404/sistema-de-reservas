@@ -103,6 +103,21 @@ public class ClienteDAO {
         return c;
     }
 
+    public Cliente buscarPorId(int idCliente) throws SQLException {
+        String sql = "SELECT * FROM CLIENTES WHERE id_cliente = ?";
+        Connection conn = null;
+        try {
+            conn = Conexion.getConexion();
+            PreparedStatement ps = conn.prepareStatement(sql);
+            ps.setInt(1, idCliente);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return mapearCliente(rs);
+            return null;
+        } finally {
+            Conexion.cerrar(conn);
+        }
+    }
+
     // Buscar cliente por email (para login)
     public Cliente buscarPorEmail(String email) throws SQLException {
         String sql = "SELECT * FROM CLIENTES WHERE email = ? AND estado = 'ACTIVO'";

@@ -1,9 +1,5 @@
 package com.spacework.model;
 
-/**
- * Modelo de Horario
- * Representa los horarios operacionales de un espacio por día
- */
 public class Horario {
     
     private int idHorario;

@@ -1604,17 +1604,18 @@ function seleccionarMetodoPago(idPago, monto, nombreCliente, emailCliente) {
                 try {
                     const res  = await fetch(`${API_BASE_URL}/descuentos/validar`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ codigo, monto: montoFinal }) });
                     const data = await res.json();
-                    if (data.success) {
-                        const desc = (montoFinal * data.porcentaje) / 100;
+                    if (data.success && data.data) {
+                        const porcentaje = data.data.porcentaje;
+                        const desc = (montoFinal * porcentaje) / 100;
                         montoFinal -= desc;
-                        idDescuentoAplicado = data.idDescuento;
+                        idDescuentoAplicado = data.data.idDescuento;
                         document.getElementById('pm-monto').textContent    = montoFinal.toFixed(2);
                         document.getElementById('pm-btn-monto').textContent = montoFinal.toFixed(2);
-                        msgEl.innerHTML = `<span style="color:#10b981;font-weight:600">✅ ${data.porcentaje}% aplicado — ahorras S/. ${desc.toFixed(2)}</span>`;
+                        msgEl.innerHTML = `<span style="color:#10b981;font-weight:600">✅ ${porcentaje}% aplicado — ahorras S/. ${desc.toFixed(2)}</span>`;
                         btnDesc.disabled = true;
                         document.getElementById('pm-codigo-descuento').disabled = true;
                     } else {
-                        msgEl.innerHTML = `<span style="color:#ef4444">❌ ${data.error || 'Código inválido'}</span>`;
+                        msgEl.innerHTML = `<span style="color:#ef4444">❌ ${data.message || 'Código inválido o vencido'}</span>`;
                     }
                 } catch(e) { msgEl.innerHTML = '<span style="color:#ef4444">Error de conexión</span>'; }
             };

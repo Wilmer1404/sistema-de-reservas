@@ -2,10 +2,6 @@ package com.spacework.model;
 
 import java.util.Date;
 
-/**
- * Modelo de Evaluación
- * Representa calificaciones y comentarios de usuarios sobre reservas
- */
 public class Evaluacion {
     
     private int idEvaluacion;

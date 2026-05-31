@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes - SpaceWork</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        .reportes-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .reporte-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .reporte-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .reporte-header h2 {
+            margin: 0;
+            color: #333;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .año-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .año-selector input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 120px;
+        }
+        .año-selector button {
+            padding: 8px 16px;
+            background: #C8102E;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .año-selector button:hover {
+            background: #a00824;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-box {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #C8102E;
+        }
+        .stat-box h4 {
+            margin: 0 0 8px 0;
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        .stat-box .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #C8102E;
+        }
+        .table-reportes {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .table-reportes th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+        }
+        .table-reportes td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        .table-reportes tr:hover {
+            background: #f9f9f9;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #c33;
+        }
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3c3;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-container">
+            <span class="navbar-brand">SpaceWork - Reportes</span>
+            <div class="navbar-links">
+                <a href="index.html">Dashboard</a>
+                <a href="reserva.html">Reservas</a>
+                <a href="pago.html">Pagos</a>
+                <a href="evaluacion.html">Evaluaciones</a>
+                <a href="#" onclick="logout()">Cerrar Sesión</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="reportes-container">
+        <h1>📊 Reportes del Sistema</h1>
+
+        <!-- Reporte 1: Ingresos Mensuales -->
+        <div class="reporte-card">
+            <div class="reporte-header">
+                <h2>💰 Ingresos Mensuales</h2>
+                <div class="año-selector">
+                    <label for="anioInput">Año:</label>
+                    <input type="number" id="anioInput" min="2020" max="2099">
+                    <button onclick="cargarIngresosMensuales()">Cargar</button>
+                </div>
+            </div>
+            <div id="ingresosLoading" class="loading" style="display: none;">Cargando...</div>
+            <div id="ingresosError" class="error" style="display: none;"></div>
+            <div class="chart-container">
+                <canvas id="ingresosChart"></canvas>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <h4>Total del Año</h4>
+                    <div class="value" id="totalIngresos">S/ 0.00</div>
+                </div>
+                <div class="stat-box">
+                    <h4>Promedio Mensual</h4>
+                    <div class="value" id="promedioIngresos">S/ 0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reporte 2: Reservas por Estado -->
+        <div class="reporte-card">
+            <div class="reporte-header">
+                <h2>📅 Distribución de Reservas por Estado</h2>
+                <button onclick="cargarReservasPorEstado()" style="padding: 8px 16px; background: #C8102E; color: white; border: none; border-radius: 4px; cursor: pointer;">Actualizar</button>
+            </div>
+            <div id="estadoLoading" class="loading" style="display: none;">Cargando...</div>
+            <div id="estadoError" class="error" style="display: none;"></div>
+            <div class="chart-container">
+                <canvas id="estadoChart"></canvas>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <h4>Total Reservas</h4>
+                    <div class="value" id="totalReservas">0</div>
+                </div>
+            </div>
+            <table class="table-reportes" id="tableEstados">
+                <thead>
+                    <tr>
+                        <th>Estado</th>
+                        <th>Cantidad</th>
+                        <th>Porcentaje</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Reporte 3: Ocupación por Espacio -->
+        <div class="reporte-card">
+            <div class="reporte-header">
+                <h2>🏢 Ocupación por Espacio</h2>
+                <button onclick="cargarOcupacionEspacios()" style="padding: 8px 16px; background: #C8102E; color: white; border: none; border-radius: 4px; cursor: pointer;">Actualizar</button>
+            </div>
+            <div id="ocupacionLoading" class="loading" style="display: none;">Cargando...</div>
+            <div id="ocupacionError" class="error" style="display: none;"></div>
+            <div class="chart-container">
+                <canvas id="ocupacionChart"></canvas>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <h4>Total Espacios</h4>
+                    <div class="value" id="totalEspacios">0</div>
+                </div>
+            </div>
+            <table class="table-reportes" id="tableOcupacion">
+                <thead>
+                    <tr>
+                        <th>Espacio</th>
+                        <th>Reservas Activas</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let chartsInstances = {
+            ingresos: null,
+            estado: null,
+            ocupacion: null
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            verificarAutenticacion();
+            const anioActual = new Date().getFullYear();
+            document.getElementById('anioInput').value = anioActual;
+            cargarReportes();
+        });
+
+        function cargarReportes() {
+            cargarIngresosMensuales();
+            cargarReservasPorEstado();
+            cargarOcupacionEspacios();
+        }
+
+        function cargarIngresosMensuales() {
+            const anio = document.getElementById('anioInput').value;
+            const loading = document.getElementById('ingresosLoading');
+            const error = document.getElementById('ingresosError');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            fetch(`/api/reportes/ingresos-mensuales?anio=${anio}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            })
+            .then(r => r.json())
+            .then(res => {
+                loading.style.display = 'none';
+                if (res.success) {
+                    const datos = res.data.datos;
+                    const labels = Object.keys(datos);
+                    const values = Object.values(datos);
+                    const total = values.reduce((a, b) => a + b, 0);
+                    const promedio = (total / labels.length).toFixed(2);
+
+                    document.getElementById('totalIngresos').textContent = `S/ ${total.toFixed(2)}`;
+                    document.getElementById('promedioIngresos').textContent = `S/ ${promedio}`;
+
+                    if (chartsInstances.ingresos) chartsInstances.ingresos.destroy();
+                    const ctx = document.getElementById('ingresosChart').getContext('2d');
+                    chartsInstances.ingresos = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Ingresos (S/)',
+                                data: values,
+                                backgroundColor: '#C8102E',
+                                borderColor: '#a00824',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                } else {
+                    error.textContent = res.error;
+                    error.style.display = 'block';
+                }
+            })
+            .catch(e => {
+                loading.style.display = 'none';
+                error.textContent = e.message;
+                error.style.display = 'block';
+            });
+        }
+
+        function cargarReservasPorEstado() {
+            const loading = document.getElementById('estadoLoading');
+            const error = document.getElementById('estadoError');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            fetch('/api/reportes/reservas-por-estado', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            })
+            .then(r => r.json())
+            .then(res => {
+                loading.style.display = 'none';
+                if (res.success) {
+                    const datos = res.data.datos;
+                    const labels = Object.keys(datos);
+                    const values = Object.values(datos);
+                    const total = values.reduce((a, b) => a + b, 0);
+
+                    document.getElementById('totalReservas').textContent = total;
+
+                    const tbody = document.querySelector('#tableEstados tbody');
+                    tbody.innerHTML = '';
+                    labels.forEach(label => {
+                        const cantidad = datos[label];
+                        const porcentaje = ((cantidad / total) * 100).toFixed(1);
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${label}</td>
+                                <td>${cantidad}</td>
+                                <td>${porcentaje}%</td>
+                            </tr>
+                        `;
+                    });
+
+                    if (chartsInstances.estado) chartsInstances.estado.destroy();
+                    const ctx = document.getElementById('estadoChart').getContext('2d');
+                    chartsInstances.estado = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: values,
+                                backgroundColor: ['#C8102E', '#FFC107', '#28a745', '#6c757d'],
+                                borderColor: '#fff',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { position: 'bottom' } }
+                        }
+                    });
+                } else {
+                    error.textContent = res.error;
+                    error.style.display = 'block';
+                }
+            })
+            .catch(e => {
+                loading.style.display = 'none';
+                error.textContent = e.message;
+                error.style.display = 'block';
+            });
+        }
+
+        function cargarOcupacionEspacios() {
+            const loading = document.getElementById('ocupacionLoading');
+            const error = document.getElementById('ocupacionError');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+
+            fetch('/api/reportes/ocupacion-espacios', {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            })
+            .then(r => r.json())
+            .then(res => {
+                loading.style.display = 'none';
+                if (res.success) {
+                    const datos = res.data.datos;
+                    const labels = Object.keys(datos);
+                    const values = Object.values(datos);
+
+                    document.getElementById('totalEspacios').textContent = labels.length;
+
+                    const tbody = document.querySelector('#tableOcupacion tbody');
+                    tbody.innerHTML = '';
+                    labels.forEach(label => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${label}</td>
+                                <td>${datos[label]}</td>
+                            </tr>
+                        `;
+                    });
+
+                    if (chartsInstances.ocupacion) chartsInstances.ocupacion.destroy();
+                    const ctx = document.getElementById('ocupacionChart').getContext('2d');
+                    chartsInstances.ocupacion = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Reservas Activas',
+                                data: values,
+                                backgroundColor: '#28a745',
+                                borderColor: '#20c997',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: { x: { beginAtZero: true } }
+                        }
+                    });
+                } else {
+                    error.textContent = res.error;
+                    error.style.display = 'block';
+                }
+            })
+            .catch(e => {
+                loading.style.display = 'none';
+                error.textContent = e.message;
+                error.style.display = 'block';
+            });
+        }
+
+        function verificarAutenticacion() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
