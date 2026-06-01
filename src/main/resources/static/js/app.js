@@ -1040,10 +1040,12 @@ function renderHorariosBloqueados(horarios) {
 
     if (!horarios || horarios.length === 0) {
         container.innerHTML = `<div class="col-12">
-            <div style="text-align:center;padding:48px;color:#64748b">
-                <div style="font-size:48px;margin-bottom:12px">🔓</div>
-                <p style="font-size:16px;font-weight:600">No hay horarios bloqueados</p>
-                <p style="font-size:14px">Usa el botón "Bloquear Horario" para restringir disponibilidad de un espacio.</p>
+            <div style="text-align:center;padding:60px 24px;color:#64748b;background:#f8fafc;border-radius:16px;border:2px dashed #e2e8f0">
+                <div style="width:64px;height:64px;background:#f1f5f9;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+                    <i class="fas fa-lock-open" style="font-size:26px;color:#94a3b8"></i>
+                </div>
+                <p style="font-size:16px;font-weight:700;color:#374151;margin-bottom:6px">Sin bloqueos activos</p>
+                <p style="font-size:13px;color:#9ca3af">Todos los espacios están disponibles. Usa "Bloquear Horario" para restringir disponibilidad.</p>
             </div></div>`;
         return;
     }
@@ -1052,53 +1054,95 @@ function renderHorariosBloqueados(horarios) {
         const fmtFecha = (str) => {
             if (!str) return '-';
             const d = new Date(str);
-            return d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' })
-                 + ' · ' + d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' });
+            const fecha = d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
+            const hora  = d.toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' });
+            return { fecha, hora };
         };
-        const inicio = fmtFecha(h.fechaInicio);
-        const fin    = fmtFecha(h.fechaFin);
+        const ini = fmtFecha(h.fechaInicio);
+        const fin = fmtFecha(h.fechaFin);
+
+        // Calcular duración en horas
+        let duracion = '';
+        if (h.fechaInicio && h.fechaFin) {
+            const ms = new Date(h.fechaFin) - new Date(h.fechaInicio);
+            const hrs = Math.floor(ms / 3600000);
+            const min = Math.floor((ms % 3600000) / 60000);
+            duracion = hrs > 0 ? `${hrs}h ${min > 0 ? min + 'min' : ''}` : `${min}min`;
+        }
 
         const col = document.createElement('div');
-        col.className = 'col-md-6 col-lg-4';
+        col.className = 'col-md-6 col-lg-6 mb-3';
         col.innerHTML = `
-            <div style="border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);background:#fff;height:100%;display:flex;flex-direction:column">
-                <div style="background:linear-gradient(135deg,#dc2626,#ef4444);padding:14px 18px;display:flex;align-items:center;gap:10px">
-                    <div style="font-size:22px">🚫</div>
-                    <div>
-                        <div style="color:#fff;font-weight:700;font-size:15px">${h.nombreEspacio || 'Espacio #' + h.idEspacio}</div>
-                        <div style="color:rgba(255,255,255,0.8);font-size:12px">Bloqueo #${h.idHorarioBloqueado}</div>
+            <div class="bloqueo-card" style="
+                border-radius:14px;
+                overflow:hidden;
+                box-shadow:0 4px 20px rgba(220,38,38,0.10);
+                background:#fff;
+                border:1px solid #fee2e2;
+                height:100%;
+                display:flex;
+                flex-direction:column;
+                transition:transform .2s,box-shadow .2s;
+            " onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 28px rgba(220,38,38,0.16)'"
+               onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(220,38,38,0.10)'">
+
+                <!-- Cabecera -->
+                <div style="background:linear-gradient(135deg,#b91c1c 0%,#dc2626 60%,#ef4444 100%);padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <div style="width:38px;height:38px;background:rgba(255,255,255,0.18);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                            <i class="fas fa-ban" style="color:#fff;font-size:16px"></i>
+                        </div>
+                        <div>
+                            <div style="color:#fff;font-weight:700;font-size:14px;line-height:1.2">${h.nombreEspacio || 'Espacio #' + h.idEspacio}</div>
+                            <div style="color:rgba(255,255,255,0.75);font-size:11px;margin-top:2px">
+                                <i class="fas fa-hashtag" style="font-size:9px"></i> Bloqueo ${h.idHorarioBloqueado}
+                            </div>
+                        </div>
                     </div>
+                    ${duracion ? `<span style="background:rgba(0,0,0,0.2);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">${duracion}</span>` : ''}
                 </div>
+
+                <!-- Razón destacada -->
+                <div style="background:#fef2f2;padding:10px 18px;border-bottom:1px solid #fee2e2;display:flex;align-items:center;gap:8px">
+                    <i class="fas fa-comment-alt" style="color:#dc2626;font-size:12px;flex-shrink:0"></i>
+                    <span style="font-size:13px;color:#7f1d1d;font-weight:600">${(h.razon || 'Sin razón especificada').toUpperCase()}</span>
+                </div>
+
+                <!-- Timeline de fechas -->
                 <div style="padding:16px 18px;flex:1">
-                    <div style="display:flex;flex-direction:column;gap:10px">
-                        <div style="display:flex;gap:8px;align-items:flex-start">
-                            <span style="color:#dc2626;font-size:14px;margin-top:1px">📅</span>
-                            <div>
-                                <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Inicio</div>
-                                <div style="font-size:13px;color:#1e293b;font-weight:500">${inicio}</div>
+                    <div style="position:relative;padding-left:20px">
+                        <!-- Línea vertical -->
+                        <div style="position:absolute;left:7px;top:16px;bottom:16px;width:2px;background:linear-gradient(to bottom,#dc2626,#fca5a5)"></div>
+
+                        <!-- Inicio -->
+                        <div style="position:relative;margin-bottom:16px">
+                            <div style="position:absolute;left:-20px;top:3px;width:14px;height:14px;border-radius:50%;background:#dc2626;border:2px solid #fff;box-shadow:0 0 0 2px #dc2626"></div>
+                            <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px">
+                                <i class="fas fa-play-circle" style="color:#dc2626;margin-right:3px"></i>Inicio
                             </div>
+                            <div style="font-size:13px;font-weight:700;color:#1e293b">${ini.hora}</div>
+                            <div style="font-size:11px;color:#64748b">${ini.fecha}</div>
                         </div>
-                        <div style="display:flex;gap:8px;align-items:flex-start">
-                            <span style="color:#dc2626;font-size:14px;margin-top:1px">🏁</span>
-                            <div>
-                                <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Fin</div>
-                                <div style="font-size:13px;color:#1e293b;font-weight:500">${fin}</div>
+
+                        <!-- Fin -->
+                        <div style="position:relative">
+                            <div style="position:absolute;left:-20px;top:3px;width:14px;height:14px;border-radius:50%;background:#fca5a5;border:2px solid #fff;box-shadow:0 0 0 2px #fca5a5"></div>
+                            <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px">
+                                <i class="fas fa-stop-circle" style="color:#fca5a5;margin-right:3px"></i>Fin
                             </div>
-                        </div>
-                        <div style="display:flex;gap:8px;align-items:flex-start">
-                            <span style="color:#dc2626;font-size:14px;margin-top:1px">📝</span>
-                            <div>
-                                <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Razón</div>
-                                <div style="font-size:13px;color:#1e293b">${h.razon || 'Sin especificar'}</div>
-                            </div>
+                            <div style="font-size:13px;font-weight:700;color:#1e293b">${fin.hora}</div>
+                            <div style="font-size:11px;color:#64748b">${fin.fecha}</div>
                         </div>
                     </div>
                 </div>
-                <div style="padding:12px 18px;border-top:1px solid #f1f5f9">
+
+                <!-- Botón desbloquear -->
+                <div style="padding:12px 18px;background:#fafafa;border-top:1px solid #f1f5f9">
                     <button onclick="desbloquearHorario(${h.idHorarioBloqueado})"
-                        style="width:100%;padding:8px;border:none;border-radius:8px;background:#fee2e2;color:#dc2626;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s"
-                        onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'">
-                        🔓 Desbloquear
+                        style="width:100%;padding:9px 16px;border:1.5px solid #dc2626;border-radius:8px;background:#fff;color:#dc2626;font-weight:700;font-size:13px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px"
+                        onmouseover="this.style.background='#dc2626';this.style.color='#fff'"
+                        onmouseout="this.style.background='#fff';this.style.color='#dc2626'">
+                        <i class="fas fa-lock-open"></i> Desbloquear Horario
                     </button>
                 </div>
             </div>`;
@@ -2295,74 +2339,131 @@ function renderNotificaciones(notificaciones) {
     container.innerHTML = '';
 
     if (!notificaciones || notificaciones.length === 0) {
-        container.innerHTML = '<div class="col-12"><div style="text-align:center;padding:40px;color:#64748b">' +
-            '<div style="font-size:40px;margin-bottom:10px">🔔</div>' +
-            '<p style="font-size:15px;font-weight:600">Sin notificaciones</p></div></div>';
+        container.innerHTML = `<div class="col-12">
+            <div style="text-align:center;padding:64px 24px;background:#f8fafc;border-radius:16px;border:2px dashed #e2e8f0">
+                <div style="width:64px;height:64px;background:#e2e8f0;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+                    <i class="fas fa-bell-slash" style="font-size:26px;color:#94a3b8"></i>
+                </div>
+                <p style="font-size:16px;font-weight:700;color:#374151;margin-bottom:4px">Sin notificaciones</p>
+                <p style="font-size:13px;color:#9ca3af">El sistema no tiene notificaciones pendientes.</p>
+            </div></div>`;
         return;
     }
 
     const tipoConfig = {
-        'EVALUACION':   { icono:'⭐', color:'#f59e0b' },
-        'PAGO':         { icono:'💳', color:'#10b981' },
-        'RESERVA':      { icono:'📅', color:'#3b82f6' },
-        'RECORDATORIO': { icono:'⏰', color:'#8b5cf6' },
+        'EVALUACION':   { fa:'fa-star',        color:'#f59e0b', bg:'#fffbeb', border:'#fcd34d', label:'Evaluación'   },
+        'PAGO':         { fa:'fa-credit-card', color:'#10b981', bg:'#f0fdf4', border:'#6ee7b7', label:'Pago'         },
+        'RESERVA':      { fa:'fa-calendar-check', color:'#3b82f6', bg:'#eff6ff', border:'#93c5fd', label:'Reserva'   },
+        'RECORDATORIO': { fa:'fa-clock',       color:'#8b5cf6', bg:'#f5f3ff', border:'#c4b5fd', label:'Recordatorio' },
+        'PROMOCION':    { fa:'fa-tag',         color:'#ec4899', bg:'#fdf2f8', border:'#f9a8d4', label:'Promoción'    },
+        'SISTEMA':      { fa:'fa-cog',         color:'#64748b', bg:'#f8fafc', border:'#cbd5e1', label:'Sistema'      },
     };
 
-    const th = 'padding:8px 12px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px';
-    let html = '<div class="col-12"><div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06)">' +
-        '<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed">' +
-        '<colgroup><col style="width:36px"><col style="width:90px"><col style="width:95px"><col style="width:auto"><col style="width:170px"></colgroup>' +
-        '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">' +
-        '<th style="' + th + ';text-align:center"></th>' +
-        '<th style="' + th + ';text-align:left">Tipo</th>' +
-        '<th style="' + th + ';text-align:left">Fecha</th>' +
-        '<th style="' + th + ';text-align:left">Detalle</th>' +
-        '<th style="' + th + ';text-align:center">Acción</th>' +
-        '</tr></thead><tbody>';
+    // Contador de no leídas
+    const noLeidas = notificaciones.filter(n => n.leida != 1).length;
 
-    notificaciones.forEach(function(n, idx) {
-        const cfg    = tipoConfig[n.tipo] || { icono:'📌', color:'#64748b' };
-        const leida  = n.leida == 1;
-        const fecha  = n.fechaCreacion
+    let html = `<div class="col-12">
+        <!-- Barra de resumen -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:14px 20px;background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,0.06);border:1px solid #e2e8f0">
+            <div style="display:flex;align-items:center;gap:10px">
+                <div style="width:36px;height:36px;background:#f1f5f9;border-radius:10px;display:flex;align-items:center;justify-content:center">
+                    <i class="fas fa-bell" style="color:#3b82f6;font-size:15px"></i>
+                </div>
+                <div>
+                    <div style="font-size:14px;font-weight:700;color:#1e293b">${notificaciones.length} notificaciones</div>
+                    <div style="font-size:11px;color:#64748b">${noLeidas} sin leer</div>
+                </div>
+            </div>
+            ${noLeidas > 0 ? `<span style="background:#3b82f6;color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px">${noLeidas} nuevas</span>` : '<span style="background:#f0fdf4;color:#16a34a;font-size:11px;font-weight:700;padding:4px 12px;border-radius:20px"><i class="fas fa-check" style="margin-right:4px"></i>Todo leído</span>'}
+        </div>
+
+        <!-- Lista de notificaciones -->
+        <div style="display:flex;flex-direction:column;gap:8px">`;
+
+    notificaciones.forEach(function(n) {
+        const cfg   = tipoConfig[n.tipo] || { fa:'fa-info-circle', color:'#64748b', bg:'#f8fafc', border:'#e2e8f0', label: n.tipo };
+        const leida = n.leida == 1;
+
+        const fecha = n.fechaCreacion
             ? new Date(n.fechaCreacion).toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' })
             : '';
+        const hora = n.fechaCreacion
+            ? new Date(n.fechaCreacion).toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' })
+            : '';
 
-        // Limpiar mensaje
-        let detalle = n.asunto || '';
-        let cliente = '';
+        let detalle = n.asunto || 'Sin asunto';
+        let subdetalle = '';
         if (n.tipo === 'EVALUACION' && n.mensaje) {
             const emailMatch   = n.mensaje.match(/Email:\s*([\w.@+-]+)/);
             const clienteMatch = n.mensaje.match(/Cliente:\s*([^|]+)/);
-            if (emailMatch)   cliente = emailMatch[1].trim();
-            if (clienteMatch) cliente += ' — ' + clienteMatch[1].trim();
+            if (clienteMatch) subdetalle = clienteMatch[1].trim();
+            if (emailMatch)   subdetalle += (subdetalle ? ' · ' : '') + emailMatch[1].trim();
         }
 
-        let accion = '';
+        let accionHtml = '';
         if (n.tipo === 'EVALUACION' && !leida) {
-            accion = '<button id="btn-eval-' + n.idNotificacion + '" onclick="enviarEvaluacion(' + n.idNotificacion + ', this)" ' +
-                'style="padding:5px 10px;border:none;border-radius:6px;background:#f0fdf4;color:#16a34a;font-weight:600;font-size:11px;cursor:pointer;white-space:nowrap">' +
-                '📧 Enviar email</button>';
+            accionHtml = `<button id="btn-eval-${n.idNotificacion}" onclick="enviarEvaluacion(${n.idNotificacion}, this)"
+                style="padding:7px 14px;border:1.5px solid #16a34a;border-radius:8px;background:#fff;color:#16a34a;
+                       font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;transition:all .2s;
+                       display:flex;align-items:center;gap:6px"
+                onmouseover="this.style.background='#16a34a';this.style.color='#fff'"
+                onmouseout="this.style.background='#fff';this.style.color='#16a34a'">
+                <i class="fas fa-paper-plane"></i> Enviar email
+            </button>`;
         } else if (n.tipo === 'EVALUACION' && leida) {
-            accion = '<span style="font-size:11px;color:#16a34a;font-weight:600">✅ Enviado</span>';
+            accionHtml = `<span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#16a34a;font-weight:600;padding:7px 14px;background:#f0fdf4;border-radius:8px">
+                <i class="fas fa-check-circle"></i> Enviado
+            </span>`;
         }
 
-        const bg  = idx % 2 === 0 ? '#fff' : '#f8fafc';
-        const op  = leida ? 'opacity:.6' : '';
-        html += '<tr style="background:' + bg + ';border-bottom:1px solid #f1f5f9;' + op + '">' +
-            '<td style="padding:8px 12px;text-align:center;font-size:16px">' + cfg.icono + '</td>' +
-            '<td style="padding:8px 12px">' +
-                '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:' + cfg.color + '20;color:' + cfg.color + '">' + n.tipo + '</span>' +
-            '</td>' +
-            '<td style="padding:8px 12px;color:#64748b;font-size:11px;white-space:nowrap">' + fecha + '</td>' +
-            '<td style="padding:8px 12px;overflow:hidden">' +
-                '<div style="font-weight:600;color:#1e293b;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + detalle + '</div>' +
-                (cliente ? '<div style="font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + cliente + '</div>' : '') +
-            '</td>' +
-            '<td style="padding:8px 12px;text-align:center">' + accion + '</td>' +
-            '</tr>';
+        html += `
+            <div style="
+                display:flex;align-items:center;gap:14px;
+                padding:14px 18px;
+                background:${leida ? '#f9fafb' : '#fff'};
+                border-radius:12px;
+                border:1px solid ${leida ? '#e2e8f0' : cfg.border};
+                border-left:4px solid ${leida ? '#cbd5e1' : cfg.color};
+                box-shadow:${leida ? 'none' : '0 2px 8px rgba(0,0,0,0.06)'};
+                opacity:${leida ? '0.7' : '1'};
+                transition:box-shadow .2s;
+            " onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.10)'"
+               onmouseout="this.style.boxShadow='${leida ? 'none' : '0 2px 8px rgba(0,0,0,0.06)'}'"
+            >
+                <!-- Icono circular -->
+                <div style="width:44px;height:44px;border-radius:12px;background:${cfg.bg};
+                            display:flex;align-items:center;justify-content:center;flex-shrink:0;
+                            border:1.5px solid ${cfg.border}">
+                    <i class="fas ${cfg.fa}" style="color:${cfg.color};font-size:17px"></i>
+                </div>
+
+                <!-- Contenido -->
+                <div style="flex:1;min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">
+                        <span style="font-size:10px;font-weight:800;padding:2px 9px;border-radius:20px;
+                                     background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.border};
+                                     text-transform:uppercase;letter-spacing:.5px">${cfg.label}</span>
+                        ${!leida ? '<span style="width:7px;height:7px;border-radius:50%;background:#3b82f6;display:inline-block"></span>' : ''}
+                    </div>
+                    <div style="font-size:13px;font-weight:${leida ? '500' : '700'};color:${leida ? '#64748b' : '#1e293b'};
+                                white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:480px">
+                        ${detalle}
+                    </div>
+                    ${subdetalle ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${subdetalle}</div>` : ''}
+                </div>
+
+                <!-- Fecha -->
+                <div style="text-align:right;flex-shrink:0;margin:0 12px">
+                    <div style="font-size:12px;font-weight:600;color:#374151">${fecha}</div>
+                    <div style="font-size:11px;color:#94a3b8">${hora}</div>
+                </div>
+
+                <!-- Acción -->
+                ${accionHtml ? `<div style="flex-shrink:0">${accionHtml}</div>` : ''}
+            </div>`;
     });
 
-    html += '</tbody></table></div></div>';
+    html += '</div></div>';
     container.innerHTML = html;
 }
 

@@ -138,6 +138,19 @@ CREATE TABLE PAGOS (
     CONSTRAINT fk_pago_descuento FOREIGN KEY (id_descuento) REFERENCES DESCUENTOS(id_descuento)
 );
 
+-- Horarios de operación de cada espacio por día de semana
+CREATE TABLE HORARIOS (
+    id_horario      NUMBER         PRIMARY KEY,
+    id_espacio      NUMBER         NOT NULL,
+    dia_semana      NUMBER(1)      NOT NULL CHECK (dia_semana BETWEEN 1 AND 7),
+    hora_apertura   VARCHAR2(5)    NOT NULL,
+    hora_cierre     VARCHAR2(5)    NOT NULL,
+    estado          VARCHAR2(20)   DEFAULT 'ACTIVO'
+                                   CHECK (estado IN ('ACTIVO','INACTIVO')),
+    CONSTRAINT fk_horario_espacio FOREIGN KEY (id_espacio) REFERENCES ESPACIOS(id_espacio),
+    CONSTRAINT uq_horario_espacio_dia UNIQUE (id_espacio, dia_semana)
+);
+
 -- Horarios bloqueados por espacio
 CREATE TABLE HORARIOS_BLOQUEADOS (
     id_bloqueo       NUMBER         PRIMARY KEY,
@@ -221,6 +234,8 @@ CREATE INDEX idx_reserva_fechas      ON RESERVAS(fecha_inicio, fecha_fin);
 CREATE INDEX idx_reserva_estado      ON RESERVAS(estado);
 CREATE INDEX idx_pago_estado         ON PAGOS(estado_pago);
 CREATE INDEX idx_pago_reserva        ON PAGOS(id_reserva);
+CREATE INDEX idx_horario_espacio     ON HORARIOS(id_espacio);
+CREATE INDEX idx_horario_dia         ON HORARIOS(dia_semana);
 CREATE INDEX idx_bloqueo_espacio     ON HORARIOS_BLOQUEADOS(id_espacio, fecha_inicio, fecha_fin);
 CREATE INDEX idx_token_value         ON TOKENS_EVALUACION(token);
 CREATE INDEX idx_eval_cliente        ON EVALUACIONES(id_cliente);
@@ -243,6 +258,7 @@ CREATE SEQUENCE SEQ_ESPACIOS     START WITH 1    INCREMENT BY 1;
 CREATE SEQUENCE SEQ_DESCUENTOS   START WITH 1    INCREMENT BY 1;
 CREATE SEQUENCE SEQ_RESERVAS     START WITH 1000 INCREMENT BY 1;
 CREATE SEQUENCE SEQ_PAGOS        START WITH 1    INCREMENT BY 1;
+CREATE SEQUENCE SEQ_HORARIOS     START WITH 1    INCREMENT BY 1;
 CREATE SEQUENCE SEQ_BLOQUEOS     START WITH 1    INCREMENT BY 1;
 CREATE SEQUENCE SEQ_TOKENS_EVALUACION START WITH 1 INCREMENT BY 1;
 CREATE SEQUENCE SEQ_EVALUACIONES START WITH 1    INCREMENT BY 1;
@@ -384,6 +400,39 @@ INSERT INTO ESPACIOS (id_espacio, nombre, tipo, capacidad, ubicacion, precio_por
 INSERT INTO ESPACIOS (id_espacio, nombre, tipo, capacidad, ubicacion, precio_por_hora, descripcion) VALUES
   (SEQ_ESPACIOS.NEXTVAL, 'Sala Ejecutiva', 'SALA_REUNION', 8, 'Piso 3', 80.00,
    'Sala ejecutiva con videoconferencia HD.');
+
+-- Horarios de operación (dia_semana: 1=Lunes, 2=Mar, ..., 6=Sab, 7=Dom)
+-- Espacio 1: Sala de Reuniones A
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 1, 1, '08:00', '20:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 1, 2, '08:00', '20:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 1, 3, '08:00', '20:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 1, 4, '08:00', '20:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 1, 5, '08:00', '20:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 1, 6, '09:00', '17:00');
+
+-- Espacio 2: Auditorio Principal
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 2, 1, '08:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 2, 2, '08:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 2, 3, '08:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 2, 4, '08:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 2, 5, '08:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 2, 6, '09:00', '18:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 2, 7, '09:00', '18:00');
+
+-- Espacio 3: Oficina Coworking
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 3, 1, '07:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 3, 2, '07:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 3, 3, '07:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 3, 4, '07:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 3, 5, '07:00', '22:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 3, 6, '08:00', '18:00');
+
+-- Espacio 4: Sala Ejecutiva
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 4, 1, '08:00', '19:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 4, 2, '08:00', '19:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 4, 3, '08:00', '19:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 4, 4, '08:00', '19:00');
+INSERT INTO HORARIOS (id_horario, id_espacio, dia_semana, hora_apertura, hora_cierre) VALUES (SEQ_HORARIOS.NEXTVAL, 4, 5, '08:00', '19:00');
 
 -- Descuentos de ejemplo
 INSERT INTO DESCUENTOS (id_descuento, codigo, descripcion, porcentaje, monto_minimo,
