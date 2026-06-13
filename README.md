@@ -2,7 +2,7 @@
 
 Sistema web desarrollado con Spring Boot y Oracle para gestionar la reserva de espacios, pagos y evaluaciones.
 
-**Stack:** Java 25 · Spring Boot 2.7 · Oracle XE · REST API · JWT · HTML/CSS/JS
+**Stack:** Java 8 · Spring Boot 2.7.14 · Oracle XE · REST API · JWT · HTML/CSS/JS
 
 ---
 
@@ -14,16 +14,13 @@ Sistema web desarrollado con Spring Boot y Oracle para gestionar la reserva de e
 
 ## Configuración de base de datos
 
-Ejecutar los scripts en orden:
+Ejecutar el script principal:
 
 ```sql
-@sql/01_crear_tablas.sql
-@sql/02_crear_secuencias.sql
-@sql/03_crear_triggers.sql
-@sql/04_datos_iniciales.sql
+@sql/spacework_database.sql
 ```
 
-Editar `src/main/resources/application.properties` con los datos de conexión Oracle.
+Editar la conexión de base de datos en `src/main/java/com/spacework/util/Conexion.java`.
 
 ## Ejecutar el proyecto
 
@@ -40,10 +37,27 @@ La aplicación queda disponible en `http://localhost:8080`
 ```
 src/main/java/com/spacework/
     controller/   - Endpoints REST
+    config/       - Configuración web y CORS
     service/      - Lógica de negocio
     dao/          - Acceso a datos (JDBC)
+    dto/          - Objetos de transferencia de datos
+    exception/    - Excepciones personalizadas
+    handler/      - Manejadores globales de errores
+    interceptor/  - Interceptores HTTP
     model/        - Entidades
+    strategy/     - Estrategias de pago
     util/         - Conexión, JWT, Email
+
+src/main/resources/
+    application.properties
+    logback-spring.xml
+    mail.properties
+    static/       - Frontend (HTML/CSS/JS)
+
+scripts/maintenance/
+    backup_bd.sh
+    cleanup_logs.sh
+    rotation_auditoria.sql
 ```
 
 ## Módulos del sistema
