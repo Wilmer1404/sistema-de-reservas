@@ -10,6 +10,8 @@ import java.sql.Timestamp;
 import java.util.Date;
 import java.util.List;
 
+import org.junit.jupiter.api.Disabled;
+@Disabled("Requiere base de datos encendida")
 public class ReservaDAOTest {
 
     private ReservaDAO reservaDAO;

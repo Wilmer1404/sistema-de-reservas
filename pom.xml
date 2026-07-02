@@ -27,22 +27,19 @@
 
     <dependencies>
 
-        <!-- Driver JDBC Oracle (JAR local en lib/) -->
+        <!-- Driver JDBC Oracle -->
         <dependency>
             <groupId>com.oracle.database.jdbc</groupId>
             <artifactId>ojdbc8</artifactId>
             <version>21.9.0.0</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/ojdbc8.jar</systemPath>
         </dependency>
 
-        <!-- JUnit 4 para pruebas unitarias (JAR local en lib/) -->
+        <!-- JUnit 4 para pruebas unitarias -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.13.2</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/junit-4.13.2.jar</systemPath>
+            <scope>test</scope>
         </dependency>
 
         <!-- Hamcrest requerido por JUnit 4 -->
@@ -50,8 +47,7 @@
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-core</artifactId>
             <version>1.3</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/hamcrest-core-1.3.jar</systemPath>
+            <scope>test</scope>
         </dependency>
 
         <!-- JavaMail API para envío de correos -->
@@ -59,8 +55,6 @@
             <groupId>com.sun.mail</groupId>
             <artifactId>javax.mail</artifactId>
             <version>1.6.2</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/javax.mail.jar</systemPath>
         </dependency>
 
         <!-- Activation requerido por JavaMail -->
@@ -68,8 +62,6 @@
             <groupId>javax.activation</groupId>
             <artifactId>activation</artifactId>
             <version>1.1.1</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/activation.jar</systemPath>
         </dependency>
 
         <!-- Spring Boot Starters -->
@@ -133,32 +125,7 @@
             </plugins>
         </pluginManagement>
         <plugins>
-            <!-- Plugin para copiar el driver Oracle al directorio de salida -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <id>copy-ojdbc8-to-jar</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <!-- Crear estructura de directorios correcta para Spring Boot -->
-                                <mkdir dir="${project.build.directory}/jar-content/BOOT-INF/lib"/>
-                                <!-- Copiar ojdbc8 a la estructura -->
-                                <copy file="${project.basedir}/lib/ojdbc8.jar" todir="${project.build.directory}/jar-content/BOOT-INF/lib"/>
-                                <!-- Agregar al JAR ejecutable -->
-                                <jar update="true" destfile="${project.build.directory}/SistemaReservas-${project.version}.jar" basedir="${project.build.directory}/jar-content"/>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            
+
             <!-- Plugin para empaquetar con dependencias incluidas -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -182,7 +149,6 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <mainClass>com.spacework.SpaceWorkApplication</mainClass>
-                    <includeSystemScope>true</includeSystemScope>
                 </configuration>
             </plugin>
         </plugins>

@@ -14,7 +14,7 @@ import java.util.Random;
 @Service
 public class ClienteService {
 
-    private final ClienteDAO clienteDAO = new ClienteDAO();
+    private ClienteDAO clienteDAO = new ClienteDAO();
 
     public List<Cliente> listar() throws Exception {
         return clienteDAO.listar();

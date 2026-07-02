@@ -8,8 +8,8 @@ public class Conexion {
 
     // Ajusta estos valores si tu Docker usa otro puerto, SID o usuario
     private static final String URL  = "jdbc:oracle:thin:@localhost:1521:XE";
-    private static final String USER = "juan";
-    private static final String PASS = "MiContra123";
+    private static final String USER = "spacework";
+    private static final String PASS = "spacework";
 
     public static Connection getConexion() throws SQLException {
         Connection conn = DriverManager.getConnection(URL, USER, PASS);

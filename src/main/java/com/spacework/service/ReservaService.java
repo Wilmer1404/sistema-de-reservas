@@ -13,11 +13,11 @@ import java.util.Map;
 @Service
 public class ReservaService {
 
-    private final ReservaDAO reservaDAO = new ReservaDAO();
-    private final EspacioDAO espacioDAO = new EspacioDAO();
-    private final ClienteDAO clienteDAO = new ClienteDAO();
-    private final PagoDAO pagoDAO = new PagoDAO();
-    private final HorarioBloqueadoDAO horarioBloqueadoDAO = new HorarioBloqueadoDAO();
+    private ReservaDAO reservaDAO = new ReservaDAO();
+    private EspacioDAO espacioDAO = new EspacioDAO();
+    private ClienteDAO clienteDAO = new ClienteDAO();
+    private PagoDAO pagoDAO = new PagoDAO();
+    private HorarioBloqueadoDAO horarioBloqueadoDAO = new HorarioBloqueadoDAO();
 
     public List<Reserva> listarTodas() throws Exception {
         return reservaDAO.listarTodas();
